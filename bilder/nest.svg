@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 140">
+  <!-- Drei Eier im Nest (Farben wie im App-Symbol der Nest-Familie) -->
+  <ellipse cx="100" cy="80" rx="78" ry="16" fill="#6e421e"/>
+  <g fill="#fffaf0" stroke="#d9c9b0" stroke-width="2">
+    <ellipse cx="68" cy="64" rx="19" ry="25"/>
+    <ellipse cx="132" cy="64" rx="19" ry="25"/>
+    <ellipse cx="100" cy="58" rx="20" ry="27"/>
+  </g>
+  <path d="M20 80 Q100 164 180 80 Z" fill="#96602e"/>
+  <g fill="none" stroke="#cd9656" stroke-linecap="round">
+    <path d="M22 81 Q100 98 178 81" stroke-width="7"/>
+    <path d="M40 94 Q100 116 160 94" stroke-width="3" opacity="0.8"/>
+    <path d="M58 106 Q100 124 142 106" stroke-width="3" opacity="0.8"/>
+    <path d="M6 72 L36 84" stroke-width="5"/>
+    <path d="M194 72 L164 84" stroke-width="5"/>
+  </g>
+  <g fill="none" stroke="#6e421e" stroke-linecap="round" stroke-width="3">
+    <path d="M12 88 L40 92"/>
+    <path d="M188 88 L160 92"/>
+  </g>
+</svg>

@@ -53,6 +53,10 @@ Drei-Stufen-Lektion („Zeig mir“), Trommel (Silben), „Wo ist bei dir …?�
 Gast-Lob neu: ein Gast fest je Spiel, lobt einmal am Spielende; nie Stimmwechsel mitten im Zählen.
 
 ## Testen – Stolperfallen (wie Wortnest)
+- `.venv` und `.stimmen` sind lokale Verweise auf `../Kinder-Lernapp/` (Piper „Thorsten“); `./werkzeuge/alle_tests.sh kinder`
+  startet nur Läufe, deren Name so beginnt.
+- Offen in Wortnest (nur nach Absprache ändern): sein `sw.js` löscht beim Update **alle** fremden Caches der Adresse,
+  also auch `zahlennest-v…`. Zahlennest füllt den Cache darum bei jedem Start nach (`cache-pruefen`, Test `offline`).
 - Firefox-Snap: Profile/Screenshots nur unter `~/snap/firefox/common/zahlennest-test/`; Firefox direkt starten
   (`/snap/firefox/current/usr/lib/firefox/firefox`), `user.js` mit `media.webspeech.synth.enabled=false`.
 - Bildprüfung mit System-`python3` (PIL). Testserver über den Port stoppen, nie `pkill -f` im selben Befehl.

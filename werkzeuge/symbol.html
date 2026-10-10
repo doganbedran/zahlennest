@@ -1,0 +1,42 @@
+<!doctype html>
+<!-- Bauplan des App-Symbols (Gestaltungsrichtlinie der Nest-Familie): Petrol-Grund, weiße „3“ in Andika 700 im Nest,
+     gelber Punkt oben rechts. Wird von werkzeuge/symbol_erzeugen.sh in Firefox fotografiert.
+     ?maskable: ohne Ecken, Inhalt kleiner (alles Wichtige im inneren Kreis, 80 %). -->
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @font-face { font-family: 'Andika'; font-weight: 700; src: url('../fonts/andika-latin-700.woff2') format('woff2'); }
+    html, body { margin: 0; width: 512px; height: 512px; overflow: hidden; background: #00796b; }
+    svg { display: block; }
+  </style>
+</head>
+<body>
+  <svg width="512" height="512" viewBox="0 0 512 512">
+    <g id="inhalt">
+      <circle cx="388" cy="124" r="30" fill="#fde26c"/>
+      <!-- Innenseite des Nests hinter der Zahl -->
+      <ellipse cx="252" cy="352" rx="112" ry="16" fill="#6e421e"/>
+      <text x="252" y="356" text-anchor="middle" font-family="Andika" font-weight="700" font-size="270" fill="#fff">3</text>
+      <!-- Schale vorn, Wulst, Flechtlinien, Zweigenden -->
+      <path d="M138 352 Q252 480 366 352 Z" fill="#96602e"/>
+      <g fill="none" stroke="#cd9656" stroke-linecap="round">
+        <path d="M140 353 Q252 376 364 353" stroke-width="8"/>
+        <path d="M165 372 Q252 400 339 372" stroke-width="4" opacity="0.8"/>
+        <path d="M190 390 Q252 412 314 390" stroke-width="4" opacity="0.8"/>
+        <path d="M112 342 L156 360" stroke-width="6"/>
+        <path d="M392 342 L348 360" stroke-width="6"/>
+      </g>
+      <g fill="none" stroke="#6e421e" stroke-linecap="round" stroke-width="4">
+        <path d="M120 368 L160 372"/>
+        <path d="M384 368 L344 372"/>
+      </g>
+    </g>
+  </svg>
+  <script>
+    if (location.search.includes('maskable')) {
+      document.getElementById('inhalt').setAttribute('transform', 'translate(256 256) scale(0.8) translate(-256 -256)');
+    }
+  </script>
+</body>
+</html>

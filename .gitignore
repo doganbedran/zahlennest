@@ -1,6 +1,6 @@
-# Lokale Werkzeuge, nicht online stellen
-.venv/
-.stimmen/
+# Lokale Werkzeuge, nicht online stellen (hier Verweise auf die von Wortnest)
+.venv
+.stimmen
 __pycache__/
 # Testseiten werden aus index.html erzeugt (werkzeuge/testseiten_erzeugen.sh)
 tests/*.html

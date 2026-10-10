@@ -10,7 +10,7 @@ description: Fertige Änderung an der App veröffentlichen – Version und Cache
 2. **Version erhöhen** (nur wenn App-Dateien geändert wurden, nicht bei reinen Doku/Werkzeug-Änderungen):
    `APP_VERSION` in `app.js` und `CACHE` in `sw.js` **gemeinsam** um 1. Neue Dateien, die offline gebraucht werden,
    in `DATEIEN` in `sw.js` aufnehmen und prüfen, dass sie existieren.
-3. **Testserver** prüfen (`ss -ltn 'sport = :8765'`), sonst starten: `.venv/bin/python werkzeuge/testserver.py 8765 &`
+3. **Testserver** prüfen (`ss -ltn 'sport = :8766'`), sonst starten: `.venv/bin/python werkzeuge/testserver.py 8766 &`
 4. **Alle Tests:** `./werkzeuge/alle_tests.sh` – jede Zeile muss OK sein. Bei FEHLER: Screenshot unter
    `~/snap/firefox/common/zahlennest-test/t-<name>.png` ansehen, beheben, erneut. Nicht veröffentlichen, solange etwas rot ist.
 5. **Commit** auf Deutsch, kurze Überschrift (was das Kind/die Eltern davon haben), dann `git push` – **nur gekoppelt an den Exit-Code der Tests** (`if ./werkzeuge/alle_tests.sh > datei; then … git push; fi`) und nur, wenn `git status` keine nicht freigegebenen `.wav` zeigt.

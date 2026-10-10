@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#fdf6ec">
+  <title>Zahlennest – Mengen und Zahlen</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="laedt">
+
+  <!-- Willkommen: nur beim allerersten Start auf einem neuen Gerät, für die Eltern -->
+  <section id="willkommen" class="screen">
+    <div class="willkommen">
+      <img class="willkommen-bild" src="bilder/nest.svg" alt="">
+      <h2>Willkommen im Zahlennest!</h2>
+      <p><b>Mengen sehen, zählen, vergleichen</b> – für Kinder ab 3. Kostenlos, ohne Werbung,
+        funktioniert auch ohne Internet.</p>
+      <p>Spielen mehrere Kinder? Dann legen Sie für jedes Kind einen Eintrag an – so sieht jedes die Spiele,
+        die zu ihm passen.</p>
+      <button id="btn-willkommen-kind" class="willkommen-btn haupt">👧 Kind anlegen</button>
+      <button id="btn-willkommen-los" class="willkommen-btn">▶️ Gleich spielen</button>
+      <p class="hinweis">Später geht alles im Elternbereich: <b>⚙️ oben rechts 2 Sekunden gedrückt halten</b>.
+        Dort auch: Kinder, Pause, welche Spiele zu sehen sind.</p>
+      <button id="btn-willkommen-info" class="text-btn">ℹ️ Über die App &amp; Datenschutz</button>
+    </div>
+  </section>
+
+  <!-- Über die App & Datenschutz (für Eltern) -->
+  <section id="info" class="screen eltern">
+    <header class="topbar">
+      <button id="btn-info-zurueck" class="icon-btn" aria-label="Zurück">⬅️</button>
+      <h2>Über die App</h2>
+      <span></span>
+    </header>
+    <div class="eltern-inhalt info">
+      <div class="karte">
+        <h3>Zahlennest <small>· eine App vom Lauschling</small></h3>
+        <p>Eine kostenlose Lern-App für Kinder ab 3 Jahren, ohne Werbung und ohne Tracking – als privates Projekt eines
+          Vaters für seine Kinder entstanden. Sie ist an Montessori angelehnt: erst <b>Mengen</b> erleben, dann Ziffern;
+          erst kleine Zahlen (1 bis 3 auf einen Blick, bis 5 zählen), dann größere. Gezählt wird durch Schieben, nicht
+          durch Tippen, und die letzte Zahl wird betont: „eins, zwei, drei – drei Äpfel!“</p>
+        <p>Es gibt kein „falsch“, keine Punkte und keine Zeitgrenze. Jede Runde endet mit einer kleinen Aufgabe in der
+          echten Welt („Hol mir zwei Löffel!“) – Zählen lernt man vor allem beim Tischdecken, Treppensteigen und Spielen.</p>
+        <p>Welche Spiele Ihr Kind sieht, stellen Sie im Elternbereich ein – am besten ein neues Spiel erst zeigen, wenn
+          Sie es zusammen ausprobiert haben. Kurze Einheiten (wenige Minuten) sind für dieses Alter genug.</p>
+        <p>Schwester-App: <a href="https://doganbedran.github.io/buchstaben/" target="_blank" rel="noopener">Wortnest</a>
+          (Buchstaben und Laute). Eine eingestellte Pause gilt für beide Apps zusammen.</p>
+      </div>
+      <div class="karte">
+        <h3>Datenschutz</h3>
+        <p><b>Alles bleibt auf diesem Gerät.</b> Namen der Kinder, Fotos und Einstellungen speichert die App nur im
+          Speicher dieses Browsers bzw. der installierten App. Es gibt kein Konto, keinen eigenen Server, keine Werbung,
+          keine Analyse- oder Tracking-Dienste, und nichts wird an Dritte gesendet.</p>
+        <p><b>Kamera und Mikrofon</b> werden nur benutzt, wenn Sie ausdrücklich ein Foto wählen oder etwas aufnehmen.</p>
+        <p><b>Abruf der App:</b> Die App wird über <a href="https://pages.github.com/" target="_blank" rel="noopener">GitHub Pages</a>
+          (GitHub, Inc., USA) bereitgestellt. Beim Laden und bei Updates verarbeitet GitHub technisch notwendig Verbindungsdaten
+          wie die IP-Adresse, z. B. zur Sicherheit des Dienstes. Darauf hat die App keinen Einfluss; Einzelheiten stehen in der
+          <a href="https://docs.github.com/de/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">Datenschutzerklärung von GitHub</a>.
+          Danach läuft die App auch ohne Internet.</p>
+        <p><b>Wortnest und Zahlennest</b> liegen unter derselben Adresse, speichern ihre Daten aber getrennt. Gemeinsam
+          ist nur die Pause (Spielzeit von heute und die Einstellung „Pause nach … Minuten“).</p>
+        <p><b>Löschen:</b> Kinder lassen sich im Elternbereich einzeln löschen. Alles auf einmal löschen Sie, indem Sie die
+          App deinstallieren bzw. die Website-Daten dieser Seite im Browser löschen – Achtung: Das löscht auch die Daten
+          von Wortnest auf diesem Gerät.</p>
+      </div>
+      <div class="karte">
+        <h3>Lizenz &amp; Kontakt</h3>
+        <p>Der Programmcode ist freie Software unter der
+          <a href="https://www.gnu.org/licenses/agpl-3.0.de.html" target="_blank" rel="noopener">GNU AGPL 3.0</a>.
+          Aufnahmen des Sprechers stehen unter
+          <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/deed.de" target="_blank" rel="noopener">CC BY-NC-ND 4.0</a>
+          (nicht kommerziell, nicht verändert); vorläufige Aufnahmen stammen von der Sprachsynthese Piper („Thorsten“, frei).
+          Bilder sind Emoji Ihres Geräts bzw. eigene Zeichnungen. Schrift: Andika von SIL International unter der
+          <a href="https://github.com/doganbedran/zahlennest/blob/main/fonts/OFL.txt" target="_blank" rel="noopener">SIL Open Font License 1.1</a>.</p>
+        <p>Fragen, Ideen oder Fehler? Gern auf der Projektseite:
+          <a href="https://github.com/doganbedran/zahlennest" target="_blank" rel="noopener">github.com/doganbedran/zahlennest</a></p>
+        <p class="hinweis"><span id="info-version"></span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Wer spielt? (nur wenn Kinder angelegt sind) -->
+  <section id="wer" class="screen">
+    <header class="topbar wer-kopf">
+      <img class="wer-nest" src="bilder/nest.svg" alt="">
+    </header>
+    <div id="wer-liste" class="wer-liste"></div>
+  </section>
+
+  <!-- Startseite: nur große Spiel-Kacheln (ein Bildschirm, eine Aufgabe) -->
+  <section id="home" class="screen active">
+    <header class="topbar">
+      <button id="btn-kind" class="kind-btn" aria-label="Anderes Kind" hidden></button>
+      <span></span>
+      <button id="btn-eltern" class="icon-btn small" aria-label="Elternbereich (lange drücken)">
+        <span>⚙️</span><svg class="ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="16"/></svg>
+      </button>
+    </header>
+    <!-- Spiele: große Symbole, die Kinder ohne Lesen verstehen; sichtbar nur, was fertig und im Regal ist -->
+    <nav class="spiele-raster" aria-label="Spiele">
+      <button class="spiel-btn" data-spiel="wieviele" aria-label="Wie viele?" hidden>✋</button>
+      <button class="spiel-btn" data-spiel="mehr" aria-label="Mehr oder weniger?" hidden>⚖️</button>
+      <button class="spiel-btn" data-spiel="korb" aria-label="In den Korb zählen" hidden>🧺</button>
+      <button class="spiel-btn" data-spiel="trommel" aria-label="Zahlen-Trommel" hidden>🥁</button>
+      <button class="spiel-btn" data-spiel="holmir" aria-label="Hol mir …" hidden>🥄</button>
+    </nav>
+    <!-- Noch kein Spiel im Regal: ruhiges Nest statt leerer Seite -->
+    <div id="home-leer" class="home-leer" hidden><img src="bilder/nest.svg" alt=""></div>
+  </section>
+
+  <!-- Pause: ruhiges Bild, nur 🏠 (gilt auch nach einer Pause in Wortnest) -->
+  <section id="pause" class="screen">
+    <div class="spiel-pause">
+      <div class="pause-bild" aria-hidden="true">😴</div>
+      <button id="btn-pause-home" class="ende-home" aria-label="Fertig">🏠</button>
+    </div>
+  </section>
+
+  <section id="eltern" class="screen eltern">
+    <header class="topbar">
+      <button id="btn-eltern-zurueck" class="icon-btn" aria-label="Zurück">🏠</button>
+      <h2>Elternbereich</h2>
+      <span></span>
+    </header>
+    <div class="eltern-inhalt">
+      <div class="karte">
+        <h3>Kinder</h3>
+        <p class="hinweis">Jedes Kind hat eigene Einstellungen. Sobald ein Kind angelegt ist, fragt die App beim Start
+          „Wer spielt?“. Die App zählt nichts über Ihr Kind – es gibt keine Punkte und keine Ranglisten.</p>
+        <div id="kinder-liste" class="kinder-liste"></div>
+        <button id="btn-kind-neu" class="text-btn">➕ Kind hinzufügen</button>
+      </div>
+
+      <div class="karte" id="karte-regal">
+        <h3>Spiele im Regal</h3>
+        <p class="hinweis">Welche Spiele auf der Startseite stehen. Lieber wenige: Ein neues Spiel erst ins Regal
+          stellen, wenn Sie es einmal zusammen ausprobiert haben.</p>
+        <div id="spiele-wahl" class="regal-wahl"></div>
+      </div>
+
+      <div class="karte">
+        <h3>Pause 😴</h3>
+        <p class="hinweis">Nach der gewählten Spielzeit kommt beim nächsten Spielende ein ruhiges Pausen-Bild – nie mitten
+          im Spiel. Wer danach (etwa eine halbe Stunde lang) ein Spiel öffnet, sieht wieder das Pausen-Bild.
+          <b>Gilt für Wortnest und Zahlennest zusammen</b> auf diesem Gerät.</p>
+        <p class="hinweis">Zur Einordnung: Für 3- bis 6-Jährige empfehlen Fachgesellschaften höchstens etwa 30 Minuten
+          Bildschirm an einzelnen Tagen, am besten gemeinsam mit einem Erwachsenen – für alle Apps zusammen.</p>
+        <div id="pause-wahl" class="regal-wahl"></div>
+        <p class="hinweis" id="spielzeit-heute"></p>
+        <button id="btn-pause-aus" class="text-btn" hidden>▶️ Pause jetzt beenden</button>
+      </div>
+
+      <div class="karte">
+        <h3>App</h3>
+        <p class="hinweis"><span id="app-version"></span> · Updates kommen automatisch, sobald das Gerät online ist.</p>
+        <button id="btn-update" class="text-btn">🔄 Nach Update suchen</button>
+      </div>
+
+      <div class="karte">
+        <h3>Über die App &amp; Datenschutz</h3>
+        <p class="hinweis">Wie die App funktioniert, was gespeichert wird (nur auf diesem Gerät) und unter welcher Lizenz sie steht.</p>
+        <button id="btn-info" class="text-btn">ℹ️ Über die App &amp; Datenschutz</button>
+      </div>
+      <input type="file" id="foto-input" accept="image/*" hidden>
+    </div>
+  </section>
+
+  <section id="kind" class="screen eltern">
+    <header class="topbar">
+      <button id="btn-kind-zurueck" class="icon-btn" aria-label="Zurück">⬅️</button>
+      <h2 id="kind-titel">Kind</h2>
+      <span></span>
+    </header>
+    <div class="eltern-inhalt">
+      <div class="karte">
+        <h3>Name</h3>
+        <input id="kind-name" class="textfeld" type="text" maxlength="20" autocomplete="off">
+      </div>
+      <div class="karte">
+        <h3>Erkennungsbild</h3>
+        <p class="hinweis">Daran erkennt das Kind sich bei „Wer spielt?“.</p>
+        <div id="kind-tiere" class="tier-auswahl"></div>
+        <div class="knopf-reihe">
+          <button id="btn-kind-foto" class="text-btn">📷 Foto vom Kind</button>
+          <button id="btn-kind-foto-weg" class="text-btn">↩️ Kein Foto</button>
+        </div>
+      </div>
+      <div class="karte">
+        <h3>Spiele im Regal</h3>
+        <p class="hinweis">Welche Spiele dieses Kind auf der Startseite sieht. Lieber wenige: Ein neues Spiel erst ins
+          Regal stellen, wenn Sie es einmal zusammen ausprobiert haben.</p>
+        <div id="kind-spiele" class="regal-wahl"></div>
+      </div>
+      <div class="karte">
+        <div class="knopf-reihe">
+          <button id="btn-kind-loeschen" class="text-btn warnung">🗑️ Kind löschen</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="ansagen.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
