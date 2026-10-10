@@ -8,8 +8,8 @@ Aufruf (aus dem Projektordner):
 
 Dateien:  audio/ansage-<name>.wav   Ansagen der Spiele (Texte in ansagen.js)
 
+Erzeugt nur fehlende Dateien (Piper klingt bei jedem Lauf etwas anders); --neu überschreibt vorhandene.
 Dateien in audio/sprecher.json (Aufnahmen des Sprechers) werden nie überschrieben.
-Piper klingt bei jedem Lauf etwas anders: nur die nötigen Teile erzeugen.
 """
 import argparse
 import json
@@ -45,7 +45,9 @@ def sprecher_dateien():
     return set(json.loads(liste.read_text(encoding='utf-8'))) if liste.exists() else set()
 
 
-def speichern(pfad, audio, rate):
+def speichern(pfad, audio, rate, neu=False):
+    if pfad.exists() and not neu:
+        return
     if pfad.name in sprecher_dateien():
         print('übersprungen (Sprecher-Aufnahme):', pfad.name)
         return
@@ -61,14 +63,17 @@ def speichern(pfad, audio, rate):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--teile', default=','.join(TEILE))
-    teile = p.parse_args().teile.split(',')
+    p.add_argument('--neu', action='store_true', help='vorhandene Dateien neu erzeugen')
+    args = p.parse_args()
+    teile = args.teile.split(',')
     stimme = PiperVoice.load(str(MODELL))
     rate = stimme.config.sample_rate
     ziel = PROJEKT / 'audio'
     ziel.mkdir(exist_ok=True)
     if 'ansagen' in teile:
         for name, satz in ANSAGEN.items():
-            speichern(ziel / f'ansage-{name}.wav', synth(stimme, satz, tempo=1.05), rate)
+            if args.neu or not (ziel / f'ansage-{name}.wav').exists():
+                speichern(ziel / f'ansage-{name}.wav', synth(stimme, satz, tempo=1.05), rate, args.neu)
 
 
 if __name__ == '__main__':

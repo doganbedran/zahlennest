@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 1;
+const APP_VERSION = 2;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -251,6 +251,64 @@ async function folgeAbspielen(folge, ersatzText) {
 }
 
 const ansage = (name) => folgeAbspielen([{ url: `audio/ansage-${name}.wav` }], ANSAGEN[name][0]);
+const warten = (ms) => new Promise((r) => setTimeout(r, ms));
+const zufall = (liste) => liste[Math.floor(Math.random() * liste.length)];
+function mischen(liste) {
+  const a = [...liste];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Zählfolge mit Leuchten: „Eins, zwei. Zwei!“ – die Dinge leuchten nacheinander im Takt der ganzen Aufnahme
+// (gleichmäßig über die Dauer verteilt: n Zählwörter + die betonte letzte Zahl). Ohne Datei: Sprachausgabe.
+async function zaehlenMitLeuchten(name, elemente) {
+  wiedergabeStoppen();
+  const nummer = wiedergabe.nummer;
+  let gestartet = false;
+  const leuchten = (dauer) => {
+    if (gestartet) return;
+    gestartet = true;
+    elemente.forEach((el, i) => setTimeout(() => nummer === wiedergabe.nummer && el.classList.add('leuchtet'),
+      (dauer * 1000 * i) / (elemente.length + 1)));
+  };
+  try {
+    await new Promise((resolve, reject) => {
+      const a = new Audio(`audio/ansage-${name}.wav`);
+      wiedergabe.audio = a;
+      a.onended = resolve;
+      a.onerror = reject;
+      a.onplaying = () => leuchten(Number.isFinite(a.duration) ? a.duration : (elemente.length + 1) * 0.7);
+      a.play().catch(reject);
+    });
+  } catch {
+    if (nummer !== wiedergabe.nummer) return;
+    leuchten((elemente.length + 1) * 0.8);
+    sprechen(ANSAGEN[name][0]);
+    await warten((elemente.length + 1) * 800);
+  }
+}
+
+// Kleines Glockenspiel für Treffer und Stufenwechsel (kein Ton bei Daneben)
+function glockenspiel() {
+  const ctx = audio();
+  if (!ctx) return;
+  [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const start = ctx.currentTime + i * 0.12;
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(0.25, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.6);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + 0.65);
+  });
+}
 
 // ---------- Bildschirme & Navigation ----------
 
@@ -263,6 +321,7 @@ function zeigen(id, verlauf = true) {
 // Zurück-Taste: zum Bildschirm aus dem Verlauf (z. B. vom Kind zurück in den Elternbereich), sonst Startseite
 window.addEventListener('popstate', () => {
   wiedergabeStoppen();
+  wievieleStoppen();
   const ziel = (history.state && history.state.screen) || 'home';
   // Infoseite von der Begrüßung aus geöffnet: dorthin zurück
   if (ziel === 'home' && $('#info').classList.contains('active') && infoVonBegruessung) {
@@ -312,7 +371,7 @@ function spielEndeWeg(id) {
 // Nach X Minuten Spielzeit kommt am nächsten Spielende ein ruhiges Pausen-Bild – nie mitten im Spiel, kein Countdown.
 // Danach zeigt jede der beiden Apps beim Öffnen eines Spiels eine halbe Stunde lang wieder das Pausen-Bild
 // (wer von Zahlennest zu Wortnest wechselt, landet nicht im nächsten Spiel); Eltern können die Pause beenden.
-// Gemeinsame Schlüssel (Wortnest muss beim Umstellen genau dieses Format nutzen):
+// Gemeinsame Schlüssel (Wortnest nutzt dasselbe Format; Änderungen nur in beiden Apps zugleich):
 //   nest:spielzeit = { ms: Spielzeit seit der letzten Pause, letzte: Zeitpunkt, tag: 'JJJJ-MM-TT', heute: ms an diesem Tag }
 //   nest:pauseNach = Minuten (0 = aus) · nest:pauseAm = Zeitpunkt der letzten Pause (ms)
 const PAUSE_NEUSTART = 30 * 60000;   // so lange nicht gespielt = Zählung beginnt neu
@@ -373,16 +432,340 @@ function pauseWahlZeichnen() {
     btn.addEventListener('click', () => { speicher.schreiben('nest:pauseNach', min); pauseWahlZeichnen(); });
     box.appendChild(btn);
   });
-  // Nur für Eltern, gerundet; Wortnest zählt erst nach seinem Update mit
+  // Nur für Eltern, gerundet; beide Apps zählen in denselben Schlüssel
   const min = Math.round(spielzeitLesen().heute / 60000);
   $('#spielzeit-heute').textContent = `Heute gespielt: ${min < 1 ? 'noch keine Minute' : `ca. ${min} Min.`} `
-    + '(Zahlennest; Wortnest zählt mit, sobald es ein Update bekommen hat).';
+    + '(Wortnest und Zahlennest zusammen).';
   $('#btn-pause-aus').hidden = !pauseLaeuft();
 }
 
 $('#btn-pause-aus').addEventListener('click', () => {
   speicher.schreiben('nest:pauseAm', 0);
   pauseWahlZeichnen();
+});
+
+// ---------- Wie viele? Drei-Stufen-Lektion mit den Mengen 1–3 ----------
+
+// 👀 Stufe 1 „Das sind zwei.“ (benennen) · 👂 Stufe 2 „Wo sind drei?“ (wiedererkennen) · 🗣️ Stufe 3 „Sag es!“ (ohne Prüfung).
+// Nur Würfelbilder (ein Lernziel); das Fingerbild kommt im Auftrag am Ende („Zeig mir zwei Finger!“).
+// Kein „falsch“: 1. Daneben = benennen, 2. = die App zählt mit (Punkte leuchten), 3. = Lösung zeigen und weiter.
+const WIEVIELE_STUFEN = [3, 6, 3];
+const WIEVIELE_SYMBOL = ['👀', '👂', '🗣️'];
+// Wartezeiten in ms (Tests verkürzen sie)
+const WIEVIELE_ZEIT = { nochmalFragen: 8000, weiterOhneTipp: 8000, antwort: 5000, unsicherWeiter: 2000, daumen: 2500,
+  auftragNochmal: 12000, auftragEnde: 30000, pause: 900 };
+const WIEVIELE_ENDE = ['ende-hingeschaut', 'ende-angeschaut', 'ende-finger'];
+// wv.stufe zählt ab 0: 0 = Stufe 1 (benennen), 1 = Stufe 2 (wiedererkennen), 2 = Stufe 3 (sag es), 3 = Auftrag echte Welt
+const wv = { stufe: 0, schritt: 0, punkte: 0, auftraege: [], ziel: 0, versuche: 0, unsicher: new Set(), gesperrt: true,
+  timer: null, nummer: 0, letzterTipp: 0, auftragMenge: 0, fertig: false, letztesEnde: null };
+
+const wvAktuell = (nr) => nr === wv.nummer && $('#wieviele').classList.contains('active');
+const wvAnsage = (nr, name) => folgeAbspielen([{ url: `audio/ansage-${name}.wav` }], ANSAGEN[name][0]).then(() => wvAktuell(nr));
+const wvZaehlen = (nr, name, elemente) => zaehlenMitLeuchten(name, elemente).then(() => wvAktuell(nr));
+const benennen = (n) => `wieviele-${n}`;
+
+// Würfelbild: 3×3-Raster, gleich große Punkte in gleichem Abstand (1 = Mitte, 2 = Diagonale, 3 = Diagonale ganz)
+const WUERFEL = { 1: [[50, 50]], 2: [[24, 24], [76, 76]], 3: [[24, 24], [50, 50], [76, 76]] };
+const wuerfelSvg = (n) => `<svg viewBox="0 0 100 100" aria-hidden="true">${
+  WUERFEL[n].map(([x, y]) => `<circle class="menge-punkt" cx="${x}" cy="${y}" r="11"/>`).join('')}</svg>`;
+
+// Fingerbild (Hand von vorn, Daumen links; Daumen zuerst wie in Deutschland üblich): 1 = Daumen, 2 = + Zeigefinger, 3 = + Mittelfinger.
+// Gestreckte Finger haben die Klasse „zaehlt“ (in Zählreihenfolge), eingeklappte sind kurze Stummel.
+function fingerSvg(n) {
+  const finger = [[34, 18], [46, 12], [58, 16], [70, 26]];   // x, Höhe oben (Zeige-, Mittel-, Ring-, kleiner Finger)
+  // Daumen (bei 1–3 immer gestreckt); Drehung auf einer eigenen Gruppe: die Stilregel fürs Leuchten (transform-box)
+  // verschöbe sie sonst
+  const teile = ['<g transform="rotate(-35 32 80)"><rect class="hand finger zaehlt" x="26" y="40" width="12" height="42" rx="6"/></g>'];
+  finger.forEach(([x, oben], i) => {
+    const gestreckt = i + 2 <= n;
+    teile.push(gestreckt
+      ? `<rect class="hand finger zaehlt" x="${x - 5.5}" y="${oben}" width="11" height="${60 - oben}" rx="5.5"/>`
+      : `<rect class="hand finger" x="${x - 5.5}" y="44" width="11" height="16" rx="5.5"/>`);
+  });
+  teile.push('<rect class="hand" x="26" y="50" width="52" height="44" rx="16"/>');
+  return `<svg viewBox="0 0 100 100" aria-hidden="true"><g transform="translate(9 -2)">${teile.join('')}</g></svg>`;
+}
+
+function wvRundenZeichnen() {
+  let n = 0;
+  $('#wieviele-runden').innerHTML = WIEVIELE_STUFEN.map((anzahl) => `<span class="gruppe">${
+    Array.from({ length: anzahl }, () => `<span class="${n++ < wv.punkte ? 'voll' : ''}"></span>`).join('')}</span>`).join('');
+}
+
+function wvKarte(n, bild = wuerfelSvg(n), extra = ' kommt') {
+  const btn = document.createElement('button');
+  btn.className = `mengen-karte${extra}`;
+  btn.dataset.menge = n;
+  btn.innerHTML = bild;
+  btn.setAttribute('aria-label', String(n));
+  btn.addEventListener('click', () => wvGetippt(n, btn));
+  return btn;
+}
+
+function wvEinzeln(n, bild) {
+  const box = $('#wieviele-karten');
+  box.className = 'mengen-karten einzeln';
+  box.replaceChildren(wvKarte(n, bild));
+  return box.firstChild;
+}
+
+function animieren(el, klasse) {
+  el.classList.remove('huepft', 'wackelt', 'kommt');
+  void el.offsetWidth;
+  el.classList.add(klasse);
+}
+
+function wievieleStoppen() {
+  clearTimeout(wv.timer);
+  wv.nummer++;
+  wv.gesperrt = true;
+}
+
+// Reihenfolge in Stufe 2: jede Menge zweimal, nie zweimal dieselbe hintereinander, nicht mit der mittleren beginnen
+function wvAuftraege() {
+  for (;;) {
+    const folge = mischen([1, 2, 3, 1, 2, 3]);
+    if (folge[0] !== 2 && folge.every((n, i) => n !== folge[i - 1])) return folge;
+  }
+}
+
+// Stufe 1: eine Karte, „Das sind zwei.“; Tipp = die App zählt mit (Punkte leuchten), dann weiter
+async function wvStufe1() {
+  wievieleStoppen();
+  const nr = wv.nummer;
+  const n = wv.schritt + 1;
+  const karte = wvEinzeln(n);
+  if (!(await wvAnsage(nr, benennen(n)))) return;
+  wv.gesperrt = false;
+  karte.classList.add('pulsiert');
+  wv.timer = setTimeout(() => wvAktuell(nr) && !wv.gesperrt && wvWeiter(nr), WIEVIELE_ZEIT.weiterOhneTipp);
+}
+
+// Stufe 2: drei Karten (Plätze jedes Mal neu), „Wo sind drei?“
+async function wvStufe2() {
+  wievieleStoppen();
+  const nr = wv.nummer;
+  wv.ziel = wv.auftraege[wv.schritt];
+  wv.versuche = 0;
+  const box = $('#wieviele-karten');
+  box.className = 'mengen-karten drei';
+  box.replaceChildren(...mischen([1, 2, 3]).map((n) => wvKarte(n)));
+  await warten(400);
+  if (!wvAktuell(nr)) return;
+  wvFragen(nr);
+}
+
+async function wvFragen(nr) {
+  if (!wvAktuell(nr)) return;   // z. B. 🏠 während der kurzen Wartezeit davor
+  wv.gesperrt = true;
+  if (!(await wvAnsage(nr, `wieviele-wo-${wv.ziel}`))) return;
+  wv.gesperrt = false;
+  // Nichts getippt: nochmal fragen, danach pulsiert die gesuchte Karte sanft (nie selbst weiter, kein Zeitdruck)
+  clearTimeout(wv.timer);
+  wv.timer = setTimeout(async () => {
+    if (!wvAktuell(nr) || wv.gesperrt) return;
+    wv.gesperrt = true;
+    if (!(await wvAnsage(nr, `wieviele-wo-${wv.ziel}`))) return;
+    wv.gesperrt = false;
+    wv.timer = setTimeout(() => wvAktuell(nr) && wvZielKarte().classList.add('pulsiert'), WIEVIELE_ZEIT.nochmalFragen);
+  }, WIEVIELE_ZEIT.nochmalFragen);
+}
+
+const wvZielKarte = () => $(`#wieviele-karten .mengen-karte[data-menge="${wv.ziel}"]`);
+
+// Stufe 3: eine Karte, „Wie viele sind das? Sag es!“ – Ruhe zum Selbersagen (Karte pulsiert nicht: sagen, nicht tippen);
+// ein Tipp heißt „hören, ob es stimmt“, ohne Tipp nennt die App die Menge nach einer Weile
+async function wvStufe3() {
+  wievieleStoppen();
+  const nr = wv.nummer;
+  const n = wv.auftraege[wv.schritt];
+  const karte = wvEinzeln(n);
+  // War die Menge in Stufe 2 noch unsicher: wie in der Montessori-Lektion zurück zum Benennen (einmal, dann weiter)
+  if (wv.unsicher.has(n)) {
+    if (!(await wvAnsage(nr, benennen(n)))) return;
+    wv.gesperrt = false;
+    wv.timer = setTimeout(() => wvAktuell(nr) && !wv.gesperrt && wvWeiter(nr), WIEVIELE_ZEIT.unsicherWeiter);
+    return;
+  }
+  if (!(await wvAnsage(nr, 'wieviele-sag-es'))) return;
+  wv.gesperrt = false;
+  wv.timer = setTimeout(() => wvAktuell(nr) && !wv.gesperrt && wvAntwort(nr, n, karte), WIEVIELE_ZEIT.antwort);
+}
+
+async function wvAntwort(nr, n, karte) {
+  wv.gesperrt = true;
+  clearTimeout(wv.timer);
+  karte.classList.remove('pulsiert');
+  animieren(karte, 'huepft');
+  if (!(await wvAnsage(nr, benennen(n)))) return;
+  await warten(WIEVIELE_ZEIT.pause);
+  wvWeiter(nr);
+}
+
+async function wvGetippt(n, btn) {
+  const jetzt = performance.now();
+  // Beim Auftrag bestätigt nur der Erwachsene mit 👍 (das Kind soll die Finger zeigen, nicht das Bild antippen)
+  if (wv.gesperrt || wv.stufe === 3 || jetzt - wv.letzterTipp < 400) return;
+  wv.letzterTipp = jetzt;
+  audio();
+  clearTimeout(wv.timer);
+  const nr = wv.nummer;
+  wv.gesperrt = true;
+  btn.classList.remove('pulsiert');
+  if (wv.stufe === 2 && wv.unsicher.has(n)) {
+    // nach dem Benennen getippt: mitzählen statt dasselbe nochmal zu sagen
+    if (!(await wvZaehlen(nr, `zaehlen-${n}`, [...btn.querySelectorAll('.menge-punkt')]))) return;
+    await warten(WIEVIELE_ZEIT.pause);
+    wvWeiter(nr);
+    return;
+  }
+  if (wv.stufe === 2) { wvAntwort(nr, n, btn); return; }
+  if (wv.stufe === 0) {
+    // Stufe 1: mitzählen, die Punkte leuchten, dann weiter
+    animieren(btn, 'huepft');
+    if (!(await wvZaehlen(nr, `zaehlen-${n}`, [...btn.querySelectorAll('.menge-punkt')]))) return;
+    await warten(WIEVIELE_ZEIT.pause);
+    wvWeiter(nr);
+    return;
+  }
+  // Stufe 2
+  if (n === wv.ziel) {
+    btn.classList.add('richtig');
+    animieren(btn, 'huepft');
+    glockenspiel();
+    await warten(400);   // erst der Glockenton, dann klar hörbar die Zahl
+    if (!(await wvAnsage(nr, benennen(n)))) return;
+    await warten(WIEVIELE_ZEIT.pause);
+    wvWeiter(nr);
+    return;
+  }
+  wv.versuche++;
+  wv.unsicher.add(wv.ziel);
+  const ziel = wvZielKarte();
+  if (wv.versuche === 1) {
+    // Daneben: sanft wackeln und benennen, was getippt wurde – dann die Frage nochmal
+    animieren(btn, 'wackelt');
+    if (!(await wvAnsage(nr, benennen(n)))) return;
+    await warten(400);
+    wvFragen(nr);
+  } else if (wv.versuche === 2) {
+    // Hilfe: die anderen treten zurück, die App zählt die gesuchte Menge langsam mit
+    document.querySelectorAll('#wieviele-karten .mengen-karte').forEach((k) => k.classList.toggle('blass', k !== ziel));
+    animieren(btn, 'wackelt');
+    if (!(await wvZaehlen(nr, `zaehlen-${wv.ziel}`, [...ziel.querySelectorAll('.menge-punkt')]))) return;
+    ziel.querySelectorAll('.menge-punkt').forEach((p) => p.classList.remove('leuchtet'));
+    document.querySelectorAll('#wieviele-karten .mengen-karte').forEach((k) => k.classList.remove('blass'));
+    await warten(400);
+    wvFragen(nr);
+  } else {
+    // Lösung zeigen und weiter
+    ziel.classList.add('richtig');
+    animieren(ziel, 'huepft');
+    if (!(await wvAnsage(nr, benennen(wv.ziel)))) return;
+    await warten(WIEVIELE_ZEIT.pause);
+    wvWeiter(nr);
+  }
+}
+
+function wvWeiter(nr) {
+  if (!wvAktuell(nr)) return;
+  wv.punkte++;
+  wv.schritt++;
+  wvRundenZeichnen();
+  if (wv.schritt < WIEVIELE_STUFEN[wv.stufe]) { wvSchritt(); return; }
+  wvNaechsteStufe();
+}
+
+function wvSchritt() {
+  $('#wieviele-symbol').textContent = WIEVIELE_SYMBOL[wv.stufe] || '🙌';
+  [wvStufe1, wvStufe2, wvStufe3, wvAuftrag][wv.stufe]();
+}
+
+async function wvNaechsteStufe() {
+  wievieleStoppen();
+  const nr = wv.nummer;
+  glockenspiel();
+  wv.stufe++;
+  wv.schritt = 0;
+  wv.auftraege = wv.stufe === 1 ? wvAuftraege() : mischen([1, 2, 3]);
+  await warten(700);
+  if (!wvAktuell(nr)) return;
+  wvSchritt();
+  animieren($('#wieviele-symbol'), 'huepft');
+}
+
+// Echte Welt: „Zeig mir zwei Finger!“ – der Erwachsene tippt 👍 (oder aufs Bild), dann zählt die App die Finger mit.
+// Es wird nichts geprüft und nicht gedrängt: 👍 erscheint erst nach kurzer Zeit (Zeit zum Fingerzeigen), nach einer
+// Weile ohne Tipp kommt der Auftrag einmal nochmal, erst viel später geht es freundlich von selbst weiter.
+async function wvAuftrag() {
+  wievieleStoppen();
+  const nr = wv.nummer;
+  wv.fertig = false;
+  $('#btn-wieviele-daumen').hidden = true;
+  const n = wv.auftragMenge || (wv.auftragMenge = zufall([2, 3, 2, 3, 1]));
+  wvEinzeln(n, fingerSvg(n));
+  if (!(await wvAnsage(nr, `finger-zeig-${n}`))) return;
+  wv.gesperrt = false;
+  const beginn = Date.now();
+  wv.timer = setTimeout(() => {
+    if (!wvAktuell(nr)) return;
+    $('#btn-wieviele-daumen').hidden = false;
+    wv.timer = setTimeout(async () => {
+      if (!wvAktuell(nr) || wv.gesperrt) return;
+      if (!(await wvAnsage(nr, `finger-zeig-${n}`))) return;
+      const rest = Math.max(0, WIEVIELE_ZEIT.auftragEnde - (Date.now() - beginn));
+      wv.timer = setTimeout(() => wvAktuell(nr) && !wv.gesperrt && wvAuftragErledigt(nr), rest);
+    }, WIEVIELE_ZEIT.auftragNochmal - WIEVIELE_ZEIT.daumen);
+  }, WIEVIELE_ZEIT.daumen);
+}
+
+async function wvAuftragErledigt(nr) {
+  if (wv.fertig) return;
+  wv.fertig = true;
+  wv.gesperrt = true;
+  clearTimeout(wv.timer);
+  $('#btn-wieviele-daumen').hidden = true;
+  const karte = $('#wieviele-karten .mengen-karte');
+  if (!(await wvZaehlen(nr, `finger-${wv.auftragMenge}`, [...karte.querySelectorAll('.finger.zaehlt')]))) return;
+  glockenspiel();
+  await warten(400);
+  // Beschreiben statt bewerten, abwechselnd (nie zweimal dasselbe hintereinander)
+  wv.letztesEnde = zufall(WIEVIELE_ENDE.filter((e) => e !== wv.letztesEnde));
+  if (!(await wvAnsage(nr, wv.letztesEnde))) return;
+  spielEnde('wieviele', wievieleNeu);
+}
+
+$('#btn-wieviele-daumen').addEventListener('click', () => { audio(); if (!wv.gesperrt && wv.stufe === 3) wvAuftragErledigt(wv.nummer); });
+
+function wievieleNeu() {
+  wievieleStoppen();
+  Object.assign(wv, { stufe: 0, schritt: 0, punkte: 0, auftraege: [], unsicher: new Set(), auftragMenge: 0, fertig: false });
+  $('#btn-wieviele-daumen').hidden = true;
+  wvRundenZeichnen();
+  wvSchritt();
+}
+
+function wievieleStarten() {
+  spielEndeWeg('wieviele');
+  zeigen('wieviele');
+  wievieleNeu();
+}
+SPIELE.wieviele = wievieleStarten;
+
+$('#btn-wieviele-home').addEventListener('click', () => { wievieleStoppen(); wiedergabeStoppen(); zurStartseite(); });
+// 🔊: Ansage nochmal. In Stufe 2 nur die Frage (Karten bleiben liegen, die Hilfe nach 2 Versuchen bleibt erhalten);
+// während die App spricht, zählt oder die Stufe wechselt, passiert nichts
+$('#btn-wieviele-laut').addEventListener('click', () => {
+  const ende = $('#wieviele .spiel-ende');
+  if ((ende && !ende.hidden) || wv.fertig || wv.gesperrt) return;
+  audio();
+  if (wv.stufe === 1) {
+    clearTimeout(wv.timer);
+    wv.nummer++;
+    wvFragen(wv.nummer);
+    return;
+  }
+  wvSchritt();
 });
 
 // ---------- Elternbereich (2 Sekunden gedrückt halten) ----------

@@ -219,3 +219,59 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 /* Über die App & Datenschutz */
 .info .karte p { margin: 0 0 10px; line-height: 1.5; font-size: 0.95rem; }
 .info .karte a { color: #1d5fbf; }
+
+/* ---------- Wie viele? ---------- */
+/* Rundenpunkte als kleine Eier (nicht rund: sonst sähen sie aus wie die Mengen-Punkte) */
+.runden-eier { display: flex; gap: 12px; }
+.runden-eier .gruppe { display: flex; gap: 4px; }
+.runden-eier .gruppe span { width: 11px; height: 14px; border-radius: 50% 50% 50% 50% / 58% 58% 42% 42%;
+  border: 2px solid #c7b08a; background: var(--papier); }
+/* gefüllt in Petrol, nicht gelb: Gelb heißt im Spiel „dieser Punkt wird gerade gezählt“ */
+.runden-eier .gruppe span.voll { background: var(--akzent); border-color: var(--akzent); }
+.stufen-symbol { text-align: center; font-size: 3rem; margin: 10px 0 0; }
+.stufen-symbol.huepft { animation: huepfen 0.6s ease; }
+
+/* Karten: eine große (Stufe 1, 3, echte Welt) oder drei (Stufe 2: hochkant als Dreieck, quer als Reihe) */
+.mengen-karten { flex: 1; display: grid; gap: 24px; align-content: center; justify-content: center; padding: 0 18px; }
+.mengen-karten.einzeln { grid-template-columns: min(260px, 64vw, 38vh); }
+.mengen-karten.drei { grid-template-columns: repeat(2, min(160px, 38vw, 22vh)); }
+.mengen-karten.drei .mengen-karte:nth-child(3) { grid-column: 1 / -1; justify-self: center; width: min(160px, 38vw, 22vh); }
+@media (orientation: landscape) {
+  .mengen-karten.einzeln { grid-template-columns: min(300px, 50vh); }
+  .mengen-karten.drei { grid-template-columns: repeat(3, min(220px, 26vw, 46vh)); }
+  .mengen-karten.drei .mengen-karte:nth-child(3) { grid-column: auto; width: auto; justify-self: stretch; }
+}
+.mengen-karte { aspect-ratio: 1; border: none; border-radius: 28px; background: var(--papier); box-shadow: var(--schatten);
+  padding: 0; display: grid; place-items: center; transition: opacity 0.3s; }
+.mengen-karte svg { width: 100%; height: 100%; display: block; }
+.mengen-karte.kommt { animation: aufploppen 0.4s ease-out; }
+.mengen-karte.pulsiert { animation: warten-puls 1.6s ease-in-out infinite; }
+.mengen-karte.huepft { animation: huepfen 0.6s ease; }
+.mengen-karte.wackelt { animation: wackeln 0.6s ease; }
+.mengen-karte.blass { opacity: 0.35; }
+.mengen-karte.richtig { box-shadow: 0 0 0 6px var(--akzent); }
+/* Punkte und Finger: dunkel auf Weiß; Leuchten = gelb, heller und größer (nicht nur andere Farbe) */
+.menge-punkt { fill: #4a3f35; transform-box: fill-box; transform-origin: center; transition: fill 0.2s, transform 0.2s; }
+/* kaum größer: gleich große Punkte bleiben gleich groß (sonst vergleicht das Auge Flächen) */
+.menge-punkt.leuchtet { fill: #f5c518; stroke: #b07800; stroke-width: 2.5; transform: scale(1.05); }
+.hand { fill: #fff1dc; stroke: #4a3f35; stroke-width: 3; stroke-linejoin: round; }
+.finger { transform-box: fill-box; transform-origin: bottom; transition: fill 0.2s, transform 0.2s; }
+.finger.leuchtet { fill: #f5c518; transform: scale(1.06); }
+
+.daumen-platz { display: flex; justify-content: center; min-height: 96px; margin-bottom: max(40px, 8vh); }
+.daumen-btn { width: 96px; height: 96px; border-radius: 50%; border: 4px solid #c7b08a; background: var(--papier);
+  box-shadow: var(--schatten); font-size: 3rem; animation: warten-puls 1.6s ease-in-out infinite; }
+
+/* Querformat auf dem Handy (niedrig): 👍 rechts unten statt unter der Karte, Symbol kleiner */
+@media (orientation: landscape) and (max-height: 600px) {
+  .stufen-symbol { font-size: 2rem; margin: 0; }
+  .daumen-platz { position: fixed; right: max(32px, env(safe-area-inset-right)); bottom: 36px; margin: 0; min-height: 0; }
+}
+
+@keyframes aufploppen { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes huepfen { 30% { transform: translateY(-24px) scale(1.08); } 60% { transform: translateY(0) scale(1); } }
+@keyframes wackeln { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
+@keyframes warten-puls { 50% { transform: scale(1.05); box-shadow: 0 0 0 10px var(--akzent-hell); } }
+@media (prefers-reduced-motion: reduce) {
+  .mengen-karte.pulsiert, .daumen-btn { animation: none; box-shadow: 0 0 0 6px var(--akzent-hell); }
+}

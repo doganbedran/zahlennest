@@ -22,6 +22,10 @@ LAEUFE=(
   "kinder|tests/kinder.html#wer|412,860|90"
   "pause|tests/pause.html|412,860|60"
   "daten|tests/daten.html|412,860|60"
+  "wieviele|tests/wieviele.html|412,860|90"
+  "wieviele-klein|tests/wieviele.html|360,640|90"
+  "wieviele-tab|tests/wieviele.html|1280,800|90"
+  "wieviele-quer|tests/wieviele.html|860,412|90"
   "offline|tests/offline.html|412,860|60"
 )
 fehler=0

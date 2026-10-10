@@ -15,8 +15,11 @@ Gestaltungsrichtlinie der Familie: https://claude.ai/artifact/Gz3dEtZzQPZcjPagrs
   - eigene IndexedDB **`zahlennest`** (nie `lernapp` öffnen außer *lesend* für „Aus Wortnest übernehmen“);
   - alle localStorage-Schlüssel mit Präfix **`zn:`** (Wortnest nutzt ungepräfixte Schlüssel wie `sterne`, `kind`,
     `spielzeit` – nie schreiben! Wortnest erkennt ein neues Gerät an fehlendem `sterne`);
-  - gemeinsam mit Wortnest nur die Pause: `nest:spielzeit`, `nest:pauseNach`, `nest:pauseAm` (Wortnest muss dafür
-    später ebenfalls umgestellt werden – nur nach Absprache, eigener Schritt im Wortnest-Projekt).
+  - gemeinsam mit Wortnest nur die Pause: `nest:spielzeit`, `nest:pauseNach`, `nest:pauseAm` (Wortnest nutzt sie
+    seit seiner Version 71; Format nur in beiden Apps zugleich ändern).
+  - Was Zahlennest aus Wortnest lesen darf, regelt **`../Kinder-Lernapp/docs/datenvertrag.md`** – vor dem Bau von
+    „Aus Wortnest übernehmen“ lesen (u. a. `indexedDB.open('lernapp')` ohne Versionsnummer, nur lesend; Test
+    `daten` dann anpassen).
 - **Nichts Privates ins Repo:** keine Namen, Fotos oder Aufnahmen der Familie, keine Sicherungsdateien. Ausnahme:
   die Stimme des Users als Sprecher. Nie Kinderstimmen/Namen; neue Aufnahmen vor dem Push vom User anhören lassen,
   Push von Aufnahmen nur mit ausdrücklicher Freigabe im Chat.

@@ -10,6 +10,12 @@ hinzufügen“. Elternbereich: ⚙️ oben rechts 2 Sekunden halten. Fragen und 
 
 **Stand:** im Aufbau – Grundgerüst steht, die Spiele kommen eins nach dem anderen. Konzept: [`docs/konzept.md`](docs/konzept.md).
 
+## Spiele
+- ✋ **Wie viele?** (ab 3) – Mengen 1 bis 3 auf einen Blick erkennen, als Drei-Stufen-Lektion mit Würfelpunkten:
+  👀 „Das sind zwei.“ → 👂 „Wo sind drei?“ → 🗣️ „Wie viele sind das? Sag es!“. Daneben getippt: Die App benennt,
+  beim zweiten Mal zählt sie mit (Punkte leuchten), beim dritten zeigt sie die Lösung. Zum Schluss: „Zeig mir zwei
+  Finger!“ – ein Erwachsener tippt 👍, die App zählt die Finger mit.
+
 ## Lizenz
 - Programmcode und eigene Zeichnungen (`bilder/`, Symbol): [GNU AGPL 3.0](LICENSE)
 - Aufnahmen des Sprechers (sobald es sie gibt, Liste in `audio/sprecher.json`): CC BY-NC-ND 4.0 – siehe [audio/LIZENZ.md](audio/LIZENZ.md)

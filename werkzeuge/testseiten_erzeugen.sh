@@ -34,5 +34,6 @@ seite info 5000
 seite kinder 10000
 seite pause 8000
 seite daten 10000 "$WORTNEST"
+seite wieviele 45000
 seite offline 20000
 echo "Testseiten erzeugt"
