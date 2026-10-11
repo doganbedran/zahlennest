@@ -145,6 +145,17 @@
     <div class="daumen-platz"><button id="btn-korb-daumen" class="daumen-btn" aria-label="Gemacht" hidden>👍</button></div>
   </section>
 
+  <!-- Zahlen-Trommel: „Hau dreimal auf die Trommel!“ – je Schlag ein Punkt auf der Karte und ein Zahlwort -->
+  <section id="trommel" class="screen">
+    <header class="topbar">
+      <button id="btn-trommel-home" class="icon-btn" aria-label="Zurück">🏠</button>
+      <div id="trommel-runden" class="runden-eier"></div>
+      <button id="btn-trommel-laut" class="icon-btn" aria-label="Nochmal hören">🔊</button>
+    </header>
+    <div id="trommel-feld" class="trommel-feld"></div>
+    <div class="daumen-platz"><button id="btn-trommel-daumen" class="daumen-btn" aria-label="Gemacht" hidden>👍</button></div>
+  </section>
+
   <!-- Pause: ruhiges Bild, nur 🏠 (gilt auch nach einer Pause in Wortnest) -->
   <section id="pause" class="screen">
     <div class="spiel-pause">
@@ -179,6 +190,8 @@
           „In den Korb“: Mengen 3 bis 5 (sonst 1 bis 3)</label>
         <label class="umschalter spiel-option" data-spiel="korb"><input type="checkbox" id="korbTippen" data-option="korbTippen">
           „In den Korb“: Antippen statt Schieben (das Ding fliegt von selbst hinein)</label>
+        <label class="umschalter spiel-option" data-spiel="trommel"><input type="checkbox" id="trommelBis5" data-option="trommelBis5">
+          „Zahlen-Trommel“: Mengen 3 bis 5 (sonst 1 bis 3)</label>
       </div>
 
       <div class="karte">
@@ -243,6 +256,8 @@
           „In den Korb“: Antippen statt Schieben (das Ding fliegt von selbst hinein)</label>
         <p class="hinweis spiel-option" data-spiel="korb">Schieben übt die Hand und das Zählen zugleich. „Antippen“ hilft,
           wenn das Schieben noch schwerfällt.</p>
+        <label class="umschalter spiel-option" data-spiel="trommel"><input type="checkbox" id="kind-trommelBis5" data-option="trommelBis5">
+          „Zahlen-Trommel“: Mengen 3 bis 5 (sonst 1 bis 3)</label>
       </div>
       <div class="karte">
         <div class="knopf-reihe">

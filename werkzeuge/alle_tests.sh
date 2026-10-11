@@ -34,6 +34,10 @@ LAEUFE=(
   "korb-klein|tests/korb.html|360,640|150"
   "korb-tab|tests/korb.html|1280,800|150"
   "korb-quer|tests/korb.html|860,412|150"
+  "trommel|tests/trommel.html|412,860|120"
+  "trommel-klein|tests/trommel.html|360,640|120"
+  "trommel-tab|tests/trommel.html|1280,800|120"
+  "trommel-quer|tests/trommel.html|860,412|120"
   "offline|tests/offline.html|412,860|60"
 )
 fehler=0

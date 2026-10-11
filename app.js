@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 10;
+const APP_VERSION = 11;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -117,7 +117,7 @@ const SPIEL_INFO = {
   wieviele: 'Mengen 1 bis 3 auf einen Blick erkennen',
   mehr: 'Zwei Teller: Wo sind mehr? (auf Wunsch auch: Wo sind weniger?)',
   korb: 'Dinge in den Korb schieben und dabei zählen (1–3, auf Wunsch bis 5)',
-  trommel: 'So oft trommeln, wie gesagt wird',
+  trommel: 'So oft trommeln, wie gesagt wird (1–3, auf Wunsch bis 5)',
   holmir: 'Echte Dinge holen und zusammen zählen (mit Erwachsenem)',
 };
 // Fertige Spiele: id -> Startfunktion. Was hier fehlt, erscheint weder auf der Startseite noch im Regal.
@@ -135,7 +135,7 @@ function einstellungenLaden() {
 }
 
 // Schalter einzelner Spiele (je Kind, ohne Kinder app-weit): Name = Feld beim Kind, Schlüssel zn:<Name>, data-option
-const SPIEL_OPTIONEN = ['weniger', 'korbBis5', 'korbTippen'];
+const SPIEL_OPTIONEN = ['weniger', 'korbBis5', 'korbTippen', 'trommelBis5'];
 
 // Einstellungen einzelner Spiele nur zeigen, wenn es das Spiel schon gibt
 function spielOptionenZeigen() {
@@ -277,15 +277,18 @@ function mischen(liste) {
 
 // Zählfolge mit Leuchten: „Eins, zwei. Zwei!“ – die Dinge leuchten nacheinander im Takt der ganzen Aufnahme
 // (gleichmäßig über die Dauer verteilt: n Zählwörter + die betonte letzte Zahl). Ohne Datei: Sprachausgabe.
-async function zaehlenMitLeuchten(name, elemente) {
+async function zaehlenMitLeuchten(name, elemente, beiJedem = null) {
   wiedergabeStoppen();
   const nummer = wiedergabe.nummer;
   let gestartet = false;
   const leuchten = (dauer) => {
     if (gestartet) return;
     gestartet = true;
-    elemente.forEach((el, i) => setTimeout(() => nummer === wiedergabe.nummer && el.classList.add('leuchtet'),
-      (dauer * 1000 * i) / (elemente.length + 1)));
+    elemente.forEach((el, i) => setTimeout(() => {
+      if (nummer !== wiedergabe.nummer) return;
+      el.classList.add('leuchtet');
+      if (beiJedem) beiJedem(i);
+    }, (dauer * 1000 * i) / (elemente.length + 1)));
   };
   try {
     await new Promise((resolve, reject) => {
@@ -338,6 +341,7 @@ window.addEventListener('popstate', () => {
   wievieleStoppen();
   mehrStoppen();
   korbStoppen();
+  trommelStoppen();
   const ziel = (history.state && history.state.screen) || 'home';
   // Infoseite von der Begrüßung aus geöffnet: dorthin zurück
   if (ziel === 'home' && $('#info').classList.contains('active') && infoVonBegruessung) {
@@ -473,8 +477,8 @@ function spielBausteine(id, z) {
     stoppen() { clearTimeout(z.timer); z.nummer++; z.gesperrt = true; },
     ansage: (nr, name) => (aktuell(nr)
       ? folgeAbspielen([{ url: `audio/ansage-${name}.wav` }], ANSAGEN[name][0]).then(() => aktuell(nr)) : Promise.resolve(false)),
-    zaehlen: (nr, name, elemente) => (aktuell(nr)
-      ? zaehlenMitLeuchten(name, elemente).then(() => aktuell(nr)) : Promise.resolve(false)),
+    zaehlen: (nr, name, elemente, beiJedem) => (aktuell(nr)
+      ? zaehlenMitLeuchten(name, elemente, beiJedem).then(() => aktuell(nr)) : Promise.resolve(false)),
   };
 }
 
@@ -1578,6 +1582,352 @@ $('#btn-korb-laut').addEventListener('click', () => {
   // In der Runde: Auftrag nochmal, Schieben bleibt möglich, die Hilfe-Uhr läuft weiter
   animieren($('#korb-feld .korb-karte'), 'pulsiert');
   kbAnsage(nr, name);
+});
+
+// ---------- Zahlen-Trommel: so oft trommeln, wie gesagt wird ----------
+
+// „Trommel dreimal!“ (nicht „hau“ – in Kita und Familie heißt es „Wir hauen nicht!“), Auftrag als Punktkarte. In der
+// ersten Runde (und in der zweiten, wenn es Hilfe brauchte) trommelt die App vor: Schlegel, ganze Zählfolge „Eins, zwei,
+// drei. Dreimal!“; solange die App trommelt oder spricht, bleibt die Trommel stumm (ein Schlag = ein Zahlwort).
+// Ab „Jetzt du!“ zählt jeder Schlag (auch schon während des Satzes): „Bumm“ sofort, der Ring füllt sich, sobald seine
+// Zahl gesagt wird (Wörter nacheinander, keins abgeschnitten). Nach dem letzten ruht die Trommel (weitertrommeln klingt
+// leise, kein Fehler), dann „Dreimal!“. Schläge kurz hintereinander (< 0,3 s, auch zweiter Finger) zählen als einer.
+// Kein Takt. Pause: gefüllte Punkte bleiben; 1 = „Trommel weiter!“ (nächster Ring pulsiert), 2 = „Wir trommeln
+// zusammen!“ – die App gibt langsam den Takt, Schläge des Kindes zählen mit, sonst schlägt die App (= Lösung).
+// Gar kein Schlag: „Trommel mal!“, dann einmal vortrommeln, dann wartet die Trommel sichtbar wach.
+const TROMMEL_RUNDEN = 4;
+const TROMMEL_ZEIT = { zittern: 300, pause: 5500, erinnern: 6000, nochmalVor: 8000, zusammenTakt: 1300, fertig: 400,
+  rundenPause: 900, daumen: 2500, auftragNochmal: 12000, vormachenPause: 900 };
+const TROMMEL_ENDE = ['ende-trommel'];
+const tr = { runde: 0, runden: [], n: 0, schlaege: 0, phase: 'aus', letzter: 0, versuche: 0, gesperrt: true, timer: null,
+  nummer: 0, sprech: { kette: Promise.resolve(), offen: 0 }, fertig: false, inEcht: false, weltMenge: 0, auftrag: false,
+  letzterSchlag: 0, leiseLetzter: 0, hilfeGebraucht: false };
+const trBausteine = spielBausteine('trommel', tr);
+const { aktuell: trAktuell, ansage: trAnsage, zaehlen: trZaehlen } = trBausteine;
+
+function trommelStoppen() {
+  trBausteine.stoppen();
+  tr.phase = 'aus';
+}
+
+// Tiefes „Bumm“ ohne Datei (weich ansetzen, sonst klickt es); Lautstärke fest begrenzt (leiser als die Stimme)
+function bumm(laut = 0.4) {
+  const ctx = audio();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(140, t);
+  osc.frequency.exponentialRampToValueAtTime(55, t + 0.25);
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(Math.min(laut, 0.4), t + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.32);
+}
+
+// Kurzes Klatschen ohne Datei (gefiltertes Rauschen)
+function klatsch() {
+  const ctx = audio();
+  if (!ctx) return;
+  const laenge = Math.floor(ctx.sampleRate * 0.08);
+  const puffer = ctx.createBuffer(1, laenge, ctx.sampleRate);
+  const daten = puffer.getChannelData(0);
+  for (let i = 0; i < laenge; i++) daten[i] = (Math.random() * 2 - 1) * (1 - i / laenge) ** 3;
+  const quelle = ctx.createBufferSource();
+  const filter = ctx.createBiquadFilter();
+  const gain = ctx.createGain();
+  filter.type = 'bandpass';
+  filter.frequency.value = 1400;
+  gain.gain.value = 0.4;
+  quelle.buffer = puffer;
+  quelle.connect(filter).connect(gain).connect(ctx.destination);
+  quelle.start();
+}
+
+// 4 Runden, nie zweimal dieselbe Menge hintereinander; mit „bis 5“ beginnt es mit der kleinsten (3)
+function trommelRundenPlanen() {
+  const mengen = zustand.trommelBis5 ? [3, 4, 5] : [1, 2, 3];
+  const plan = zustand.trommelBis5 ? [3] : [];
+  while (plan.length < TROMMEL_RUNDEN) plan.push(zufall(mengen.filter((m) => !plan.length || m !== plan[plan.length - 1])));
+  return plan;
+}
+
+const trRinge = () => [...document.querySelectorAll('#trommel-feld .trommel-karte .karte-punkt')];
+const trTrommel = () => $('#trommel-feld .trommel-btn');
+const SCHLEGEL_SVG = '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M92 8 L30 70" stroke="#9a6430" stroke-width="9" stroke-linecap="round"/>'
+  + '<circle cx="24" cy="76" r="15" fill="#d23c2c" stroke="#4a3f35" stroke-width="4"/></svg>';
+// Eigene Trommel ohne Stöcke (beim Emoji 🥁 wollten Kinder die gemalten Stöcke greifen)
+const TROMMEL_SVG = '<svg viewBox="0 0 100 100" aria-hidden="true">'
+  + '<path d="M14 40 L14 72 Q50 90 86 72 L86 40 Z" fill="#d23c2c" stroke="#4a3f35" stroke-width="3.5" stroke-linejoin="round"/>'
+  + '<path d="M14 44 L32 76 L50 46 L68 78 L86 44" fill="none" stroke="#fde26c" stroke-width="3" stroke-linejoin="round"/>'
+  + '<path d="M14 72 Q50 90 86 72" fill="none" stroke="#7fb3d5" stroke-width="5"/>'
+  + '<ellipse cx="50" cy="40" rx="36" ry="12" fill="#fff6e0" stroke="#7fb3d5" stroke-width="5"/></svg>';
+
+function trRundenZeichnen() {
+  $('#trommel-runden').innerHTML = `<span class="gruppe">${
+    Array.from({ length: TROMMEL_RUNDEN }, (_, i) => `<span class="${i < tr.runde ? 'voll' : ''}"></span>`).join('')}</span>`;
+}
+
+function trTrommelZustand(zustandName) {
+  const t = trTrommel();
+  if (!t) return;
+  t.classList.toggle('wach', zustandName === 'wach');
+  t.classList.toggle('ruht', zustandName === 'ruht');
+  t.classList.remove('wartet');
+}
+
+function trAnimation(el, klasse) {
+  if (!el) return;
+  el.classList.remove('schlag', 'aufwachen', 'wackelt', 'schlaegt', 'klatscht', 'zuckt');
+  void el.offsetWidth;
+  el.classList.add(klasse);
+}
+
+// Die App trommelt vor: ganze Zählfolge „Eins, zwei, drei. Dreimal!“, bei jeder Zahl schlägt der Schlegel
+async function trVortrommeln(nr) {
+  tr.phase = 'vor';
+  const schlegel = $('#trommel-feld .schlegel');
+  schlegel.classList.add('da');
+  const ok = await trZaehlen(nr, `trommel-vor-${tr.n}`, trRinge(), () => {
+    bumm(0.35);
+    trAnimation(schlegel, 'schlaegt');
+    trAnimation(trTrommel(), 'schlag');
+  });
+  schlegel.classList.remove('da');
+  await warten(500);
+  trRinge().forEach((r) => r.classList.remove('leuchtet'));
+  return ok && trAktuell(nr);
+}
+
+async function trommelNeueRunde() {
+  trommelStoppen();
+  const nr = tr.nummer;
+  tr.n = tr.runden[tr.runde];
+  tr.schlaege = 0;
+  tr.versuche = 0;
+  tr.sprech = { kette: Promise.resolve(), offen: 0 };
+  const feld = $('#trommel-feld');
+  feld.innerHTML = `<div class="trommel-karte">${korbKarteSvg(tr.n)}</div>`
+    + `<div class="trommel-wrap"><button class="trommel-btn" aria-label="Trommel">${TROMMEL_SVG}</button><div class="schlegel">${SCHLEGEL_SVG}</div></div>`;
+  trTrommel().addEventListener('pointerdown', trommelGeschlagen);
+  // Der pulsierende Ring lädt zum Antippen ein: ein Tipp auf die Karte zählt wie ein Schlag
+  $('#trommel-feld .trommel-karte').addEventListener('pointerdown', trommelGeschlagen);
+  tr.phase = 'aus';
+  if (!(await trAnsage(nr, `trommel-hau-${tr.n}`))) return;
+  if (tr.runde === 0 || (tr.runde === 1 && tr.hilfeGebraucht)) {
+    if (!(await trAnsage(nr, 'trommel-hoerzu'))) return;
+    if (!(await trVortrommeln(nr))) return;
+  }
+  trKindIstDran(nr, 'trommel-jetzt-du');
+}
+
+// Ab jetzt zählt jeder Schlag – schon während des Satzes (viele Kinder legen sofort los; ein Schlag bricht ihn ab)
+function trKindIstDran(nr, satz = null) {
+  tr.phase = 'kind';
+  tr.gesperrt = false;
+  tr.letzter = Date.now();
+  trTrommelZustand('wach');
+  trAnimation(trTrommel(), 'aufwachen');
+  trHilfeAbwarten(nr);
+  if (satz) trAnsage(nr, satz);
+}
+
+// Ein Schlag (Finger auf Trommel oder Karte); kurz hintereinander zählt als einer
+function trommelGeschlagen(e) {
+  e.preventDefault();
+  audio();
+  const jetzt = performance.now();
+  if (tr.phase === 'kind' || tr.phase === 'zusammen') {
+    if (jetzt - tr.letzterSchlag < TROMMEL_ZEIT.zittern) return;
+    tr.letzterSchlag = jetzt;
+    trSchlagZaehlen(tr.nummer, false);
+    return;
+  }
+  if (tr.phase === 'ruht') {
+    // Nach der Zahl: leise, nichts wird gezählt (kein Fehler)
+    if (jetzt - tr.leiseLetzter > TROMMEL_ZEIT.zittern) { tr.leiseLetzter = jetzt; bumm(0.1); trAnimation(trTrommel(), 'schlag'); }
+    return;
+  }
+  // Die App trommelt vor oder spricht: stumm, die Trommel zuckt nur (sonst hört das Kind mehr Schläge als Zahlen)
+  trAnimation(trTrommel(), 'zuckt');
+}
+
+// Ein gezählter Schlag (vom Kind oder beim gemeinsamen Trommeln von der App)
+function trSchlagZaehlen(nr, vonApp) {
+  if (tr.schlaege >= tr.n) return;
+  tr.schlaege++;
+  if (tr.schlaege === 1) tr.versuche = 0;   // es geht los: Hilfe beginnt von vorn
+  tr.letzter = Date.now();
+  bumm(vonApp ? 0.35 : 0.4);
+  trAnimation(trTrommel(), 'schlag');
+  if (vonApp) trAnimation($('#trommel-feld .schlegel'), 'schlaegt');
+  const k = tr.schlaege;
+  trRinge().forEach((r) => r.classList.remove('pulsiert'));
+  const fertig = k >= tr.n;
+  if (fertig) { tr.phase = 'ruht'; trTrommelZustand('ruht'); clearTimeout(tr.timer); }
+  trZahlSagen(nr, k).then(async (ok) => {
+    if (!ok || !fertig) return;
+    await warten(TROMMEL_ZEIT.fertig);
+    trRundeFertig(nr);
+  });
+  if (!fertig && tr.phase === 'kind') trHilfeAbwarten(nr);
+}
+
+// Zahlwörter nacheinander (keins wird abgeschnitten); der Ring füllt sich, wenn seine Zahl gesagt wird
+function trZahlSagen(nr, k) {
+  const sp = tr.sprech;
+  sp.offen++;
+  sp.kette = sp.kette.then(() => {
+    const ring = trRinge()[k - 1];
+    if (ring && trAktuell(nr)) ring.classList.add('voll');
+    return trAnsage(nr, `korb-zahl-${k}`);
+  }).finally(() => { sp.offen--; });
+  return sp.kette.then(() => trAktuell(nr));
+}
+
+async function trRundeFertig(nr) {
+  if (!trAktuell(nr) || tr.rundeFertig === nr) return;
+  tr.rundeFertig = nr;
+  tr.gesperrt = true;
+  trRinge().forEach((r) => r.classList.add('leuchtet'));
+  glockenspiel();
+  await warten(300);
+  if (!(await trAnsage(nr, `trommel-fertig-${tr.n}`))) return;
+  tr.runde++;
+  trRundenZeichnen();
+  await warten(TROMMEL_ZEIT.rundenPause);
+  if (!trAktuell(nr)) return;
+  if (tr.runde < TROMMEL_RUNDEN) { trommelNeueRunde(); return; }
+  // Ruhiger Ausklang, bevor es in die echte Welt geht: die Trommel wird blass, ein letztes leises Bumm
+  trTrommelZustand('ruht');
+  trTrommel().classList.add('schlaeft');
+  bumm(0.15);
+  if (!(await trAnsage(nr, 'trommel-schlaeft'))) return;
+  await warten(600);
+  if (trAktuell(nr)) trommelAuftrag();
+}
+
+// Hilfe: eine Pause ist ein „Versuch“ (gefüllte Punkte bleiben stehen)
+const trWartezeit = () => (tr.schlaege === 0 ? (tr.versuche ? TROMMEL_ZEIT.nochmalVor : TROMMEL_ZEIT.erinnern) : TROMMEL_ZEIT.pause);
+
+function trHilfeAbwarten(nr) {
+  clearTimeout(tr.timer);
+  if (tr.schlaege === 0 && tr.versuche >= 2) {
+    // nach Erinnern und einmal Vortrommeln: still warten, die Trommel bleibt sichtbar wach
+    trTrommel().classList.add('wartet');
+    return;
+  }
+  tr.timer = setTimeout(() => trVersuch(nr), Math.max(50, trWartezeit() - (Date.now() - tr.letzter)));
+}
+
+async function trVersuch(nr) {
+  if (!trAktuell(nr) || tr.phase !== 'kind') return;
+  if (tr.sprech.offen) { tr.timer = setTimeout(() => trVersuch(nr), 500); return; }
+  if (Date.now() - tr.letzter < trWartezeit()) { trHilfeAbwarten(nr); return; }
+  tr.versuche++;
+  tr.hilfeGebraucht = true;
+  if (tr.schlaege === 0) {
+    if (tr.versuche === 1) {
+      trAnimation(trTrommel(), 'wackelt');
+      trKindIstDran(nr, 'trommel-erinnerung');   // Schläge zählen schon während „Trommel mal!“
+      return;
+    }
+    tr.phase = 'app';
+    trTrommelZustand('');
+    if (!(await trAnsage(nr, 'trommel-hoerzu'))) return;
+    if (!(await trVortrommeln(nr))) return;
+    trKindIstDran(nr, 'trommel-jetzt-du');
+    return;
+  }
+  if (tr.versuche === 1) {
+    // „Trommel weiter!“ – der nächste leere Ring pulsiert; Schläge zählen schon während des Satzes
+    trAnimation(trTrommel(), 'wackelt');
+    trRinge()[tr.schlaege].classList.add('pulsiert');
+    trKindIstDran(nr, 'trommel-weiter');
+    return;
+  }
+  // „Wir trommeln zusammen!“ – die App gibt langsam den Takt; schlägt das Kind, zählt sein Schlag, sonst schlägt die App
+  tr.phase = 'app';
+  trRinge().forEach((r) => r.classList.remove('pulsiert'));
+  if (!(await trAnsage(nr, 'trommel-zusammen'))) return;
+  const schlegel = $('#trommel-feld .schlegel');
+  schlegel.classList.add('da');
+  tr.phase = 'zusammen';
+  trTrommelZustand('wach');
+  while (tr.schlaege < tr.n && trAktuell(nr)) {
+    const vorher = tr.schlaege;
+    await warten(TROMMEL_ZEIT.zusammenTakt);
+    if (!trAktuell(nr)) return;
+    if (tr.schlaege === vorher) trSchlagZaehlen(nr, true);
+  }
+  if (!trAktuell(nr)) return;
+  schlegel.classList.remove('da');
+}
+
+// ----- Echte Welt: „Klatsch dreimal in die Hände!“ – vormachen (Hände klatschen), dann in echt, nach 👍 mitklatschen -----
+
+async function trommelAuftrag() {
+  trommelStoppen();
+  const nr = tr.nummer;
+  tr.auftrag = true;
+  tr.fertig = false;
+  $('#btn-trommel-daumen').hidden = true;
+  const n = tr.weltMenge || (tr.weltMenge = zufall([2, 3]));
+  const feld = $('#trommel-feld');
+  feld.innerHTML = '<div class="klatsch-haende" aria-hidden="true">👏</div>';
+  if (!(await trAnsage(nr, `trommel-welt-${n}`))) return;
+  const haende = $('#trommel-feld .klatsch-haende');
+  const takte = Array.from({ length: n }, () => document.createElement('span'));
+  if (!(await trZaehlen(nr, `trommel-welt-${n}-fertig`, takte, () => { klatsch(); trAnimation(haende, 'klatscht'); }))) return;
+  await warten(TROMMEL_ZEIT.vormachenPause);
+  inEcht({ z: tr, nr, aktuell: trAktuell, ansage: trAnsage, buehne: feld, knopf: $('#btn-trommel-daumen'),
+    karteHtml: `${korbKarteSvg(n)}<span class="karte-bild">👏</span>`, sagen: (nr2) => trAnsage(nr2, `trommel-welt-${n}`),
+    zeit: TROMMEL_ZEIT });
+}
+
+async function trommelAuftragErledigt(nr) {
+  const karte = inEchtBestaetigt(tr, $('#btn-trommel-daumen'));
+  if (!karte) return;
+  if (!(await trAnsage(nr, 'trommel-klatsch-mit'))) return;
+  if (!(await trZaehlen(nr, `trommel-welt-${tr.weltMenge}-fertig`, [...karte.querySelectorAll('.karte-punkt')], () => klatsch()))) return;
+  glockenspiel();
+  await warten(400);
+  if (!(await trAnsage(nr, zufall(TROMMEL_ENDE)))) return;
+  spielEnde('trommel', trommelNeu);
+}
+
+$('#btn-trommel-daumen').addEventListener('click', () => { audio(); if (tr.inEcht) trommelAuftragErledigt(tr.nummer); });
+
+function trommelNeu() {
+  trommelStoppen();
+  Object.assign(tr, { runde: 0, runden: trommelRundenPlanen(), fertig: false, auftrag: false, weltMenge: 0, inEcht: false,
+    hilfeGebraucht: false });
+  $('#btn-trommel-daumen').hidden = true;
+  trRundenZeichnen();
+  trommelNeueRunde();
+}
+
+function trommelStarten() {
+  spielEndeWeg('trommel');
+  zeigen('trommel');
+  trommelNeu();
+}
+SPIELE.trommel = trommelStarten;
+
+$('#btn-trommel-home').addEventListener('click', () => { trommelStoppen(); wiedergabeStoppen(); zurStartseite(); });
+// 🔊: Auftrag nochmal (nur wenn das Kind dran ist und keine Zahl läuft; Punkte bleiben, die Hilfe-Uhr beginnt neu)
+$('#btn-trommel-laut').addEventListener('click', () => {
+  const ende = $('#trommel .spiel-ende');
+  if ((ende && !ende.hidden) || tr.fertig) return;
+  audio();
+  if (tr.inEcht) { inEchtNochmal(tr); return; }
+  if (tr.phase !== 'kind' || tr.sprech.offen) return;
+  tr.letzter = Date.now();
+  trHilfeAbwarten(tr.nummer);
+  trAnsage(tr.nummer, `trommel-hau-${tr.n}`);
 });
 
 // ---------- Elternbereich (2 Sekunden gedrückt halten) ----------

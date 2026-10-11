@@ -378,3 +378,48 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 .in-echt-haende { font-size: min(8rem, 20dvh); line-height: 1; }
 .karte-becher { position: relative; display: inline-block; height: min(76px, 11dvh); aspect-ratio: 1; }
 .karte-becher svg { position: absolute; inset: 0; height: 100%; width: 100%; }
+
+/* ---------- Zahlen-Trommel ---------- */
+#trommel, .trommel-feld { touch-action: none; overscroll-behavior: none; }
+.trommel-feld { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly;
+  min-height: 0; padding-bottom: 40px; position: relative; }
+@media (orientation: landscape) { .trommel-feld { flex-direction: row; justify-content: center; gap: 8vw; padding-bottom: 0; } }
+/* Auftrag als Punktkarte (keine Ziffer): je Schlag füllt sich ein Ring */
+.trommel-karte { width: min(150px, 34vw, 20dvh); aspect-ratio: 1; background: var(--papier); border-radius: 22px; box-shadow: var(--schatten); }
+.trommel-karte svg { width: 100%; height: 100%; display: block; }
+.trommel-karte .karte-punkt { fill: var(--papier); stroke: #4a3f35; stroke-width: 4; transition: fill 0.2s; }
+.trommel-karte .karte-punkt.voll { fill: #4a3f35; }
+.trommel-karte .karte-punkt.leuchtet { fill: #f5c518; stroke: #b07800; }
+.trommel-karte .karte-punkt.pulsiert { animation: ring-puls 1.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes ring-puls { 50% { transform: scale(1.25); } }
+.trommel-wrap { position: relative; }
+/* Die Trommel: ganze Fläche ist Ziel; schlafend blass, wach in voller Farbe; nach der Zahl ruht sie (sinkt leicht) */
+.trommel-btn { position: relative; width: min(78vw, 330px, 44dvh); aspect-ratio: 1; border-radius: 50%; border: 6px solid #c7b08a;
+  background: var(--papier); box-shadow: var(--schatten); font-size: min(36vw, 160px, 20dvh); line-height: 1; display: grid;
+  place-items: center; padding: 0; opacity: 0.55; transition: opacity 0.3s, transform 0.3s; touch-action: none;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.trommel-btn::after { content: ''; position: absolute; inset: -20px; border-radius: 50%; }
+.trommel-btn.wach { opacity: 1; }
+.trommel-btn.ruht { opacity: 0.75; transform: scale(0.94); }
+.trommel-btn.schlag { animation: trommelschlag 0.15s ease; }
+.trommel-btn.aufwachen { animation: huepfen 0.5s ease; }
+.trommel-btn.wackelt { animation: wackeln 0.6s ease; }
+@keyframes trommelschlag { 50% { transform: scale(0.92); } }
+/* Schlegel der App (zeigt: jetzt trommelt die App, nicht du) */
+.schlegel { position: absolute; right: -6%; top: -14%; width: 38%; height: 38%; pointer-events: none; opacity: 0;
+  transform-origin: 90% 10%; transform: rotate(-35deg); transition: opacity 0.3s; }
+.schlegel.da { opacity: 1; }
+.schlegel.schlaegt { animation: schlegel-schlag 0.3s ease; }
+@keyframes schlegel-schlag { 45% { transform: rotate(8deg); } }
+.schlegel svg { width: 100%; height: 100%; display: block; }
+/* Vormachen am Schluss: Hände klatschen */
+.klatsch-haende { font-size: min(9rem, 24dvh); line-height: 1; }
+.klatsch-haende.klatscht { animation: klatschen 0.35s ease; }
+@keyframes klatschen { 40% { transform: scale(0.82); } }
+@media (prefers-reduced-motion: reduce) { .trommel-karte .karte-punkt.pulsiert { animation: none; stroke-width: 7; } }
+.trommel-btn svg { width: 72%; height: 72%; display: block; }
+.trommel-btn.zuckt { animation: zucken 0.25s ease; }
+@keyframes zucken { 50% { transform: scale(0.97); } }
+/* wartet still auf das Kind: sanft „atmen“, damit sie nicht kaputt wirkt */
+.trommel-btn.wartet { animation: warten-puls 2.4s ease-in-out infinite; }
+.trommel-btn.schlaeft { opacity: 0.35; transition: opacity 1.2s; }

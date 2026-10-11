@@ -25,6 +25,14 @@ hinzufügen“. Elternbereich: ⚙️ oben rechts 2 Sekunden halten. Fragen und 
   alle: „Drei Äpfel!“. Daneben bleibt liegen, Herausnehmen geht. Ohne Tun: Auftrag nochmal, dann Mitzählen und eine
   Hand zeigt den Weg, dann legt die App den Rest hinein. Je Kind: Mengen bis 5 (sonst 1–3), Antippen statt Schieben.
   Zum Schluss: „Leg drei Bausteine in einen Becher!“
+- 🥁 **Zahlen-Trommel** (3–4) – „Hau dreimal auf die Trommel!“ (Auftrag als Punktkarte). In den ersten zwei Runden
+  trommelt die App vor, dann das Kind: jeder Schlag „Bumm“, ein Punkt füllt sich, die Zahl wird gesagt; danach ruht
+  die Trommel und die App sagt „Dreimal!“. Doppeltipps zählen als ein Schlag, kein Takt. Bei einer Pause bleiben die
+  Punkte: „Hau weiter!“, dann trommelt die App den Rest mit. Je Kind: Mengen 3 bis 5. Zum Schluss: „Klatsch dreimal
+  in die Hände!“
+
+Alle Spiele enden gleich: Das Spiel macht den Auftrag einmal vor, dann „Jetzt in echt!“ – der Bildschirm wird ruhig
+(👐, kleine Erinnerungskarte), das Kind macht es mit echten Dingen; ein Erwachsener tippt 👍, dann zählt die App mit.
 
 ## Lizenz
 - Programmcode und eigene Zeichnungen (`bilder/`, Symbol): [GNU AGPL 3.0](LICENSE)
