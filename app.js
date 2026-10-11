@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 5;
+const APP_VERSION = 6;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -116,7 +116,7 @@ const START_AUS = ALLE_SPIELE.filter((id) => !START_REGAL.includes(id));
 const SPIEL_INFO = {
   wieviele: 'Mengen 1 bis 3 auf einen Blick erkennen',
   mehr: 'Zwei Teller: Wo sind mehr? (auf Wunsch auch: Wo sind weniger?)',
-  korb: 'Dinge in den Korb schieben und dabei zählen',
+  korb: 'Dinge in den Korb schieben und dabei zählen (1–3, auf Wunsch bis 5)',
   trommel: 'So oft trommeln, wie gesagt wird',
   holmir: 'Echte Dinge holen und zusammen zählen (mit Erwachsenem)',
 };
@@ -131,8 +131,11 @@ const appWeitAus = () => speicher.lesen('spieleAus', START_AUS);
 function einstellungenLaden() {
   const k = aktivesKind();
   zustand.spiele = regalVon(k ? (k.spieleAus || START_AUS) : appWeitAus());
-  zustand.weniger = k ? !!k.weniger : speicher.lesen('weniger', false);
+  SPIEL_OPTIONEN.forEach((o) => { zustand[o] = k ? !!k[o] : !!speicher.lesen(o, false); });
 }
+
+// Schalter einzelner Spiele (je Kind, ohne Kinder app-weit): Name = Feld beim Kind, Schlüssel zn:<Name>, data-option
+const SPIEL_OPTIONEN = ['weniger', 'korbBis5', 'korbTippen'];
 
 // Einstellungen einzelner Spiele nur zeigen, wenn es das Spiel schon gibt
 function spielOptionenZeigen() {
@@ -224,11 +227,14 @@ function sprechen(text) {
 }
 
 // Abspielen von Audiodateien nacheinander; ein neuer Aufruf bricht den laufenden ab
-const wiedergabe = { audio: null, nummer: 0 };
+const wiedergabe = { audio: null, nummer: 0, beenden: null };
 
+// Anhalten meldet die laufende Aufnahme als beendet: wer auf sie wartet, läuft weiter und prüft dann selbst, ob er
+// noch dran ist (ein angehaltenes Audio meldet sonst nie „zu Ende“ – der Ablauf dahinter bliebe für immer stehen)
 function wiedergabeStoppen() {
   wiedergabe.nummer++;
   if (wiedergabe.audio) { wiedergabe.audio.pause(); wiedergabe.audio = null; }
+  if (wiedergabe.beenden) { const fertig = wiedergabe.beenden; wiedergabe.beenden = null; fertig(); }
   if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
 
@@ -236,6 +242,7 @@ function abspielen(quelle) {
   return new Promise((resolve, reject) => {
     const a = new Audio(quelle);
     wiedergabe.audio = a;
+    wiedergabe.beenden = resolve;
     a.onended = resolve;
     a.onerror = reject;
     a.play().catch(reject);
@@ -284,6 +291,7 @@ async function zaehlenMitLeuchten(name, elemente) {
     await new Promise((resolve, reject) => {
       const a = new Audio(`audio/ansage-${name}.wav`);
       wiedergabe.audio = a;
+      wiedergabe.beenden = resolve;
       a.onended = resolve;
       a.onerror = reject;
       a.onplaying = () => leuchten(Number.isFinite(a.duration) ? a.duration : (elemente.length + 1) * 0.7);
@@ -329,6 +337,7 @@ window.addEventListener('popstate', () => {
   wiedergabeStoppen();
   wievieleStoppen();
   mehrStoppen();
+  korbStoppen();
   const ziel = (history.state && history.state.screen) || 'home';
   // Infoseite von der Begrüßung aus geöffnet: dorthin zurück
   if (ziel === 'home' && $('#info').classList.contains('active') && infoVonBegruessung) {
@@ -451,6 +460,47 @@ $('#btn-pause-aus').addEventListener('click', () => {
   pauseWahlZeichnen();
 });
 
+// ---------- Gemeinsame Bausteine der Spiele ----------
+
+// Jedes Spiel hat einen Zustand mit nummer (jeder Neustart/Abbruch zählt hoch; alte Abläufe erkennen daran, dass sie
+// überholt sind), gesperrt (Tipps zählen gerade nicht) und timer. Ansagen prüfen VOR dem Sprechen, ob das Spiel noch
+// offen ist (z. B. 🏠 während einer kurzen Wartepause), und melden danach, ob es weitergehen darf.
+function spielBausteine(id, z) {
+  const aktuell = (nr) => nr === z.nummer && $(`#${id}`).classList.contains('active');
+  return {
+    aktuell,
+    stoppen() { clearTimeout(z.timer); z.nummer++; z.gesperrt = true; },
+    ansage: (nr, name) => (aktuell(nr)
+      ? folgeAbspielen([{ url: `audio/ansage-${name}.wav` }], ANSAGEN[name][0]).then(() => aktuell(nr)) : Promise.resolve(false)),
+    zaehlen: (nr, name, elemente) => (aktuell(nr)
+      ? zaehlenMitLeuchten(name, elemente).then(() => aktuell(nr)) : Promise.resolve(false)),
+  };
+}
+
+// Auftrag in der echten Welt (alle Spiele), nachdem er gesagt wurde: 👍 (nur für Erwachsene) erscheint nach kurzer
+// Zeit zum Zeigen; nach einer Weile ohne Tipp kommt der Auftrag einmal nochmal, viel später geht es freundlich von
+// selbst weiter. Es wird nichts geprüft und nicht gedrängt. zeit: { daumen, auftragNochmal, auftragEnde } in ms.
+function auftragAbwarten({ z, nr, aktuell, knopf, sagen, erledigt, zeit }) {
+  const beginn = Date.now();
+  z.gesperrt = false;
+  const nochmal = async () => {
+    if (!aktuell(nr) || z.fertig) return;
+    if (z.gesperrt) { z.timer = setTimeout(nochmal, 1000); return; }   // 🔊 spricht gerade
+    if (!(await sagen(nr)) || z.fertig) return;
+    const ende = () => {
+      if (!aktuell(nr) || z.fertig) return;
+      if (z.gesperrt) { z.timer = setTimeout(ende, 1000); return; }
+      erledigt(nr);
+    };
+    z.timer = setTimeout(ende, Math.max(0, zeit.auftragEnde - (Date.now() - beginn)));
+  };
+  z.timer = setTimeout(() => {
+    if (!aktuell(nr)) return;
+    knopf.hidden = false;
+    z.timer = setTimeout(nochmal, zeit.auftragNochmal - zeit.daumen);
+  }, zeit.daumen);
+}
+
 // ---------- Wie viele? Drei-Stufen-Lektion mit den Mengen 1–3 ----------
 
 // 👀 Stufe 1 „Das sind zwei.“ (benennen) · 👂 Stufe 2 „Wo sind drei?“ (wiedererkennen) · 🗣️ Stufe 3 „Sag es!“ (ohne Prüfung).
@@ -466,12 +516,8 @@ const WIEVIELE_ENDE = ['ende-hingeschaut', 'ende-angeschaut', 'ende-finger'];
 const wv = { stufe: 0, schritt: 0, punkte: 0, auftraege: [], ziel: 0, versuche: 0, unsicher: new Set(), gesperrt: true,
   timer: null, nummer: 0, letzterTipp: 0, auftragMenge: 0, fertig: false, letztesEnde: null };
 
-const wvAktuell = (nr) => nr === wv.nummer && $('#wieviele').classList.contains('active');
-// Erst prüfen, ob das Spiel noch offen ist, dann sprechen (z. B. 🏠 während einer kurzen Wartepause davor)
-const wvAnsage = (nr, name) => (wvAktuell(nr)
-  ? folgeAbspielen([{ url: `audio/ansage-${name}.wav` }], ANSAGEN[name][0]).then(() => wvAktuell(nr)) : Promise.resolve(false));
-const wvZaehlen = (nr, name, elemente) => (wvAktuell(nr)
-  ? zaehlenMitLeuchten(name, elemente).then(() => wvAktuell(nr)) : Promise.resolve(false));
+const wvBausteine = spielBausteine('wieviele', wv);
+const { aktuell: wvAktuell, ansage: wvAnsage, zaehlen: wvZaehlen } = wvBausteine;
 const benennen = (n) => `wieviele-${n}`;
 
 // Würfelbild: 3×3-Raster, gleich große Punkte in gleichem Abstand (1 = Mitte, 2 = Diagonale, 3 = Diagonale ganz)
@@ -520,15 +566,13 @@ function wvEinzeln(n, bild) {
 }
 
 function animieren(el, klasse) {
-  el.classList.remove('huepft', 'wackelt', 'kommt');
+  el.classList.remove('huepft', 'wackelt', 'kommt', klasse);
   void el.offsetWidth;
   el.classList.add(klasse);
 }
 
 function wievieleStoppen() {
-  clearTimeout(wv.timer);
-  wv.nummer++;
-  wv.gesperrt = true;
+  wvBausteine.stoppen();
 }
 
 // Reihenfolge in Stufe 2: jede Menge zweimal, nie zweimal dieselbe hintereinander, nicht mit der mittleren beginnen
@@ -715,18 +759,8 @@ async function wvAuftrag() {
   const n = wv.auftragMenge || (wv.auftragMenge = zufall([2, 3, 2, 3, 1]));
   wvEinzeln(n, fingerSvg(n));
   if (!(await wvAnsage(nr, `finger-zeig-${n}`))) return;
-  wv.gesperrt = false;
-  const beginn = Date.now();
-  wv.timer = setTimeout(() => {
-    if (!wvAktuell(nr)) return;
-    $('#btn-wieviele-daumen').hidden = false;
-    wv.timer = setTimeout(async () => {
-      if (!wvAktuell(nr) || wv.gesperrt) return;
-      if (!(await wvAnsage(nr, `finger-zeig-${n}`))) return;
-      const rest = Math.max(0, WIEVIELE_ZEIT.auftragEnde - (Date.now() - beginn));
-      wv.timer = setTimeout(() => wvAktuell(nr) && !wv.gesperrt && wvAuftragErledigt(nr), rest);
-    }, WIEVIELE_ZEIT.auftragNochmal - WIEVIELE_ZEIT.daumen);
-  }, WIEVIELE_ZEIT.daumen);
+  auftragAbwarten({ z: wv, nr, aktuell: wvAktuell, knopf: $('#btn-wieviele-daumen'),
+    sagen: (nr2) => wvAnsage(nr2, `finger-zeig-${n}`), erledigt: wvAuftragErledigt, zeit: WIEVIELE_ZEIT });
 }
 
 async function wvAuftragErledigt(nr) {
@@ -795,7 +829,7 @@ const DINGE = {
   apfel: '<circle r="17" cy="2" fill="#d23c2c" stroke="#4a3f35" stroke-width="2.5"/>'
     + '<path d="M0 -14 q1 -6 5 -8" fill="none" stroke="#4a3f35" stroke-width="3" stroke-linecap="round"/>'
     + '<ellipse cx="8" cy="-14" rx="6" ry="3" fill="#4c9a3a" transform="rotate(-25 8 -14)"/>',
-  ei: '<ellipse rx="14" ry="18" fill="#fffdf7" stroke="#4a3f35" stroke-width="2.5"/>',
+  ei: '<ellipse rx="14" ry="18" fill="#fff3d6" stroke="#4a3f35" stroke-width="3"/>',
   ball: '<circle r="17" fill="#1d5fbf" stroke="#4a3f35" stroke-width="2.5"/>'
     + '<path d="M-16 -3 Q0 -12 16 -3" fill="none" stroke="#fff" stroke-width="3"/>',
 };
@@ -806,19 +840,14 @@ const MEHR_ABSTAND = 46;
 const mw = { runde: 0, runden: [], versuche: 0, mitHilfe: 0, gepaart: false, gesperrt: true, timer: null, nummer: 0, letzterTipp: 0,
   fertig: false, welt: null, letztesEnde: null, auftrag: false };
 
-const mwAktuell = (nr) => nr === mw.nummer && $('#mehr').classList.contains('active');
-const mwAnsage = (nr, name) => (mwAktuell(nr)
-  ? folgeAbspielen([{ url: `audio/ansage-${name}.wav` }], ANSAGEN[name][0]).then(() => mwAktuell(nr)) : Promise.resolve(false));
-const mwZaehlen = (nr, name, elemente) => (mwAktuell(nr)
-  ? zaehlenMitLeuchten(name, elemente).then(() => mwAktuell(nr)) : Promise.resolve(false));
+const mwBausteine = spielBausteine('mehr', mw);
+const { aktuell: mwAktuell, ansage: mwAnsage, zaehlen: mwZaehlen } = mwBausteine;
 const mwRunde = () => mw.runden[mw.runde];
 const mwTeller = () => [...document.querySelectorAll('#mehr-teller .teller')];
 const mwDinge = (teller) => [...teller.querySelectorAll('.ding')];
 
 function mehrStoppen() {
-  clearTimeout(mw.timer);
-  mw.nummer++;
-  mw.gesperrt = true;
+  mwBausteine.stoppen();
 }
 
 // Rundenplan: Mengen, welcher Teller voller ist (höchstens zweimal hintereinander dieselbe Seite), Ding, Frage
@@ -1009,20 +1038,8 @@ async function mehrAuftrag() {
     return el;
   }));
   if (!(await mehrAuftragSagen(nr))) return;
-  mw.gesperrt = false;
-  const beginn = Date.now();
-  mw.timer = setTimeout(() => {
-    if (!mwAktuell(nr)) return;
-    $('#btn-mehr-daumen').hidden = false;
-    mw.timer = setTimeout(async () => {
-      if (!mwAktuell(nr) || mw.gesperrt) return;
-      mw.gesperrt = true;
-      if (!(await mehrAuftragSagen(nr))) return;
-      mw.gesperrt = false;
-      const rest = Math.max(0, MEHR_ZEIT.auftragEnde - (Date.now() - beginn));
-      mw.timer = setTimeout(() => mwAktuell(nr) && !mw.gesperrt && mehrAuftragErledigt(nr), rest);
-    }, MEHR_ZEIT.auftragNochmal - MEHR_ZEIT.daumen);
-  }, MEHR_ZEIT.daumen);
+  auftragAbwarten({ z: mw, nr, aktuell: mwAktuell, knopf: $('#btn-mehr-daumen'),
+    sagen: mehrAuftragSagen, erledigt: mehrAuftragErledigt, zeit: MEHR_ZEIT });
 }
 
 // „Zeig mir deine Augen!“ – Zeit zum Zeigen – „Und jetzt deine Nase!“; das gemeinte Bild leuchtet
@@ -1088,6 +1105,439 @@ $('#btn-mehr-laut').addEventListener('click', () => {
   mehrFragen(mw.nummer);
 });
 
+// ---------- In den Korb zählen: Dinge in den Korb schieben, jedes Ankommen zählt ----------
+
+// „Leg drei Äpfel in den Korb.“ – Auftrag als Punktkarte (keine Ziffer), Vorrat immer 2 mehr als gesucht. Beim Ankommen
+// sagt die App die neue Zahl („eins“ … „zwei“ – einzelne Wörter, das Kind bestimmt das Tempo); sind es genug, ist die
+// Runde von selbst fertig: alle leuchten, „Drei Äpfel!“. Mehr als gesucht passt nicht hinein. Herausnehmen geht.
+// Daneben losgelassen bleibt liegen (kein Zurückspringen). Kein „falsch“: Ein „Versuch“ ist eine Weile ohne Ankommen –
+// 1 = Auftrag nochmal (Karte pulsiert), 2 = mitzählen + eine Hand zeigt den Weg, 3 = die App legt den Rest hinein.
+// Eltern-Schalter je Kind: Mengen bis 5 (sonst 1–3), Antippen statt Schieben.
+const KORB_RUNDEN = 4;
+const KORB_ZEIT = { versuch: 12000, fertigPause: 600, rundenPause: 900, loesungSchritt: 700, daumen: 2500,
+  auftragNochmal: 12000, auftragEnde: 30000 };
+// Echte Welt: eigene Zeichnungen (Emoji 🧱 wäre ein Ziegelstein, 🥤 ein Becher mit Strohhalm)
+const KORB_WELT = [
+  '<svg viewBox="0 0 100 100" aria-hidden="true"><rect x="14" y="40" width="72" height="42" rx="6" fill="#d23c2c" stroke="#4a3f35" stroke-width="4"/>'
+    + '<rect x="22" y="26" width="20" height="16" rx="4" fill="#d23c2c" stroke="#4a3f35" stroke-width="4"/>'
+    + '<rect x="58" y="26" width="20" height="16" rx="4" fill="#d23c2c" stroke="#4a3f35" stroke-width="4"/></svg>',
+  '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M24 22 L32 86 Q50 92 68 86 L76 22 Z" fill="#7fb3d5" stroke="#4a3f35" stroke-width="4" stroke-linejoin="round"/>'
+    + '<ellipse cx="50" cy="22" rx="26" ry="7" fill="#cfe3f0" stroke="#4a3f35" stroke-width="4"/></svg>',
+];
+const kb = { runde: 0, runden: [], dinge: [], imKorb: [], versuche: 0, gesperrt: true, timer: null, nummer: 0,
+  ziehen: null, mass: null, auftrag: false, fertig: false, weltMenge: 0,
+  letztesAnkommen: 0, sprech: { kette: Promise.resolve(), offen: 0 }, tipps: 0, hilfeLaeuft: false };
+const kbBausteine = spielBausteine('korb', kb);
+const { aktuell: kbAktuell, ansage: kbAnsage, zaehlen: kbZaehlen } = kbBausteine;
+const kbRunde = () => kb.runden[kb.runde];
+
+function korbStoppen() {
+  kbBausteine.stoppen();
+  if (kb.ziehen) { kb.ziehen.d.el.classList.remove('greift'); kb.ziehen = null; }
+}
+
+// 4 Runden, nie zweimal dieselbe Menge hintereinander; Ding wechselt
+function korbRundenPlanen() {
+  const mengen = zustand.korbBis5 ? [3, 4, 5] : [1, 2, 3];
+  const plan = [];
+  let ding = null;
+  for (let i = 0; i < KORB_RUNDEN; i++) {
+    const n = zufall(mengen.filter((m) => !plan.length || m !== plan[plan.length - 1].n));
+    ding = zufall(Object.keys(DINGE).filter((d) => d !== ding));
+    plan.push({ n, ding });
+  }
+  return plan;
+}
+
+// Maße aus der Größe der Spielfläche: hochkant Vorrat oben, Karte, Korb unten; quer Vorrat links, Karte + Korb rechts.
+// Dinge 84 px (kleiner, wenn es nicht passt), Abstand 0,29 × Größe (24 px) – auch im Korb; Korb 4,0 × 2,9 Dinge.
+function korbMasse(vorrat) {
+  const feld = $('#korb-feld');
+  const W = feld.clientWidth, H = feld.clientHeight;
+  const quer = W > H * 1.25;
+  const reihen = Math.ceil(vorrat / 3);
+  const S = Math.floor(quer
+    ? Math.min(84, (H - 32) / (reihen * 1.29), (H - 56) / 4.1, W / 2 / 4.3)
+    : Math.min(84, W / 4.5, (H - 56) / (reihen * 1.29 + 4.7)));
+  const g = Math.round(S * 0.29);
+  const kw = Math.round(S * 4.0), kh = Math.round(S * 2.9);
+  const unten = Math.max(40, H * 0.05);
+  const m = { W, H, quer, S, g, kw, kh };
+  const vorratBreit = 3 * S + 2 * g;
+  if (quer) {
+    m.vorratX = W / 4 - vorratBreit / 2;
+    m.vorratY = (H - (reihen * S + (reihen - 1) * g)) / 2;
+    m.kx = W * 0.75 - kw / 2;
+    m.ky = H - kh - Math.min(unten, H * 0.08);
+    m.karte = { x: W * 0.75 - S * 0.55, y: Math.max(8, m.ky - S * 1.3), s: Math.round(S * 1.1) };
+    m.fang = { l: Math.max(W / 2, m.kx - kw * 0.25), r: Math.min(W, m.kx + kw * 1.25), o: m.ky - kh * 0.25, u: H };
+  } else {
+    m.vorratX = (W - vorratBreit) / 2;
+    m.vorratY = 16;
+    m.kx = (W - kw) / 2;
+    m.ky = H - kh - unten;
+    const vorratUnten = m.vorratY + reihen * S + (reihen - 1) * g;
+    m.karte = { x: W / 2 - S * 0.55, y: (vorratUnten + m.ky) / 2 - S * 0.55, s: Math.round(S * 1.1) };
+    m.fang = { l: m.kx - kw * 0.25, r: m.kx + kw * 1.25, o: Math.max(vorratUnten + 4, m.ky - kh * 0.25), u: H };
+  }
+  return m;
+}
+
+// Plätze im Korb: oben drei, unten zwei (Mitte), in Reihenfolge des Hineinlegens
+function korbPlatz(i) {
+  const { kx, ky, kw, kh } = kb.mass;
+  const { S, g } = kb.mass;
+  const schritt = S + g;   // gleicher Abstand wie im Vorrat
+  const [sx, reihe] = [[-1, 0], [0, 0], [1, 0], [-0.5, 1], [0.5, 1]][i];
+  return [kx + kw / 2 + sx * schritt, ky + kh * 0.36 + reihe * schritt];
+}
+function vorratPlatz(i) {
+  const { vorratX, vorratY, S, g } = kb.mass;
+  return [vorratX + (i % 3) * (S + g) + S / 2, vorratY + Math.floor(i / 3) * (S + g) + S / 2];
+}
+
+function dingSetzen(d, x, y) {
+  const { W, H, S } = kb.mass;
+  d.x = Math.max(S / 2, Math.min(W - S / 2, x));
+  d.y = Math.max(S / 2, Math.min(H - S / 2, y));
+  d.el.style.transform = `translate(${d.x - S / 2}px, ${d.y - S / 2}px)`;
+}
+
+const korbSvg = '<svg viewBox="0 0 300 200" aria-hidden="true"><path d="M70 70 Q150 -40 230 70" fill="none" stroke="#a8743a" stroke-width="10" stroke-linecap="round"/>'
+  + '<rect x="12" y="44" width="276" height="148" rx="34" fill="#f3e3c7" stroke="#a8743a" stroke-width="10"/>'
+  + '<path d="M22 172 Q150 196 278 172" fill="none" stroke="#c99a5c" stroke-width="6" stroke-linecap="round"/></svg>';
+
+function korbKarteSvg(n) {
+  return `<svg viewBox="0 0 100 100" aria-hidden="true">${MEHR_STELLEN[n].map(([dx, dy]) => `<circle class="karte-punkt" cx="${
+    50 + dx * 26}" cy="${50 + dy * 26}" r="10"/>`).join('')}</svg>`;
+}
+
+function korbKarteFuellen() {
+  document.querySelectorAll('#korb-feld .karte-punkt').forEach((p, i) => p.classList.toggle('voll', i < kb.imKorb.length));
+}
+
+function kbRundenZeichnen() {
+  $('#korb-runden').innerHTML = `<span class="gruppe">${
+    Array.from({ length: KORB_RUNDEN }, (_, i) => `<span class="${i < kb.runde ? 'voll' : ''}"></span>`).join('')}</span>`;
+}
+
+// Alles neu anordnen (Rundenbeginn, Drehen des Geräts): Dinge im Korb auf ihre Plätze, die übrigen in den Vorrat
+function korbAnordnen() {
+  const feld = $('#korb-feld');
+  if (!kb.dinge.length || !feld.clientWidth) return;
+  kb.mass = korbMasse(kb.dinge.length);
+  const { S, kx, ky, kw, kh, karte } = kb.mass;
+  const korbEl = feld.querySelector('.korb-korb');
+  Object.assign(korbEl.style, { left: `${kx}px`, top: `${ky}px`, width: `${kw}px`, height: `${kh}px` });
+  const karteEl = feld.querySelector('.korb-karte');
+  Object.assign(karteEl.style, { left: `${karte.x}px`, top: `${karte.y}px`, width: `${karte.s}px`, height: `${karte.s}px` });
+  const gegriffen = kb.ziehen && kb.ziehen.d;
+  kb.dinge.forEach((d, i) => {
+    d.el.style.width = `${S}px`;
+    d.el.style.height = `${S}px`;
+    if (!d.imKorb && d !== gegriffen) dingSetzen(d, ...vorratPlatz(i));
+  });
+  if (gegriffen) dingSetzen(gegriffen, gegriffen.x, gegriffen.y);   // in die neue Fläche holen
+  korbPlaetzeSetzen();
+  if (kb.ziehen) kb.ziehen.feld = feld.getBoundingClientRect();
+}
+
+// Nur die Dinge im Korb auf ihre Plätze (danebengelegte bleiben, wo sie sind)
+function korbPlaetzeSetzen() {
+  kb.imKorb.forEach((d, i) => { if (!(kb.ziehen && kb.ziehen.d === d)) dingSetzen(d, ...korbPlatz(i)); });
+}
+window.addEventListener('resize', () => { if ($('#korb').classList.contains('active') && !kb.auftrag) korbAnordnen(); });
+
+async function korbNeueRunde() {
+  korbStoppen();
+  const nr = kb.nummer;
+  const { n, ding } = kbRunde();
+  kb.versuche = 0;
+  kb.tipps = 0;
+  kb.imKorb = [];
+  kb.sprech = { kette: Promise.resolve(), offen: 0 };   // eigene Reihe je Runde (alte Wörter zählen nicht hinein)
+  const feld = $('#korb-feld');
+  feld.innerHTML = `<div class="korb-korb">${korbSvg}</div><div class="korb-karte">${korbKarteSvg(n)}</div>`;
+  kb.dinge = Array.from({ length: n + 2 }, () => {
+    const el = document.createElement('div');
+    el.className = 'korb-ding';
+    el.innerHTML = `<svg viewBox="-25 -25 50 50" aria-hidden="true"><circle class="halo" r="23"/>${DINGE[ding]}</svg>`;
+    el.style.transition = 'none';   // erscheinen gleich an ihrem Platz (nicht aus der Ecke heranfliegen)
+    feld.appendChild(el);
+    const d = { el, imKorb: false, x: 0, y: 0 };
+    el.dinglein = d;
+    return d;
+  });
+  korbAnordnen();
+  void feld.offsetWidth;
+  kb.dinge.forEach((d) => { d.el.style.transition = ''; });
+  kb.gesperrt = false;   // greifen darf das Kind schon, während der Auftrag noch klingt
+  kb.letztesAnkommen = Date.now();
+  korbHilfeAbwarten(nr);
+  kbAnsage(nr, `korb-leg-${n}-${ding}`);
+}
+
+// ----- Schieben mit dem Finger (nur der erste Finger zählt) -----
+
+$('#korb-feld').addEventListener('pointerdown', (e) => {
+  const el = e.target.closest('.korb-ding');
+  if (!el || !el.dinglein) return;
+  e.preventDefault();
+  if (kb.ziehen || kb.gesperrt || kb.auftrag) return;
+  audio();
+  const d = el.dinglein;
+  const feld = $('#korb-feld').getBoundingClientRect();
+  kb.ziehen = { d, id: e.pointerId, sx: e.clientX, sy: e.clientY, bewegt: false, feld, nr: kb.nummer };
+  el.classList.add('greift');
+  try { el.setPointerCapture(e.pointerId); } catch { /* synthetische Ereignisse (Tests) */ }
+});
+
+document.addEventListener('pointermove', (e) => {
+  const z = kb.ziehen;
+  if (!z || e.pointerId !== z.id) return;
+  if (Math.hypot(e.clientX - z.sx, e.clientY - z.sy) > 8) z.bewegt = true;
+  // Das Ding sitzt ~30 px über dem Finger, damit das Kind es sieht
+  if (z.bewegt) dingSetzen(z.d, e.clientX - z.feld.left, e.clientY - z.feld.top - 30);
+});
+
+const imFang = (d) => {
+  const { fang, kx, ky, kw, kh, karte } = kb.mass;
+  // Auf der Punktkarte losgelassen: nicht in den Korb (die Karte liegt nah am Korb, besonders quer)
+  if (d.x > karte.x && d.x < karte.x + karte.s && d.y > karte.y && d.y < karte.y + karte.s) return false;
+  const drin = d.x >= fang.l && d.x <= fang.r && d.y >= fang.o && d.y <= fang.u;
+  // Magnet: auch knapp neben dem Korb (bis 60 px) zählt
+  const abstand = Math.hypot(Math.max(kx - d.x, 0, d.x - kx - kw), Math.max(ky - d.y, 0, d.y - ky - kh));
+  return drin || abstand <= 60;
+};
+
+function korbLoslassen(e, abgebrochen) {
+  const z = kb.ziehen;
+  if (!z || e.pointerId !== z.id) return;
+  kb.ziehen = null;
+  const { d } = z;
+  d.el.classList.remove('greift');
+  if (z.nr !== kb.nummer || !kbAktuell(z.nr)) return;
+  if (!z.bewegt) {
+    // Antippen: mit Eltern-Schalter fliegt das Ding hinein; sonst hüpft es, und beim zweiten Tipp zeigt die Hand
+    // einmal, dass man schieben muss (zählt nicht als Versuch)
+    if (!abgebrochen && zustand.korbTippen && !d.imKorb && kb.imKorb.length < kbRunde().n) { korbEinlegen(d); return; }
+    animieren(d.el, 'huepft');
+    if (!abgebrochen && !d.imKorb && ++kb.tipps === 2 && !kb.hilfeLaeuft) korbHandZeigen(z.nr, d);
+    return;
+  }
+  if (imFang(d) && !abgebrochen) {
+    if (d.imKorb) { korbPlaetzeSetzen(); return; }
+    if (kb.imKorb.length < kbRunde().n) { korbEinlegen(d); return; }
+  }
+  // Daneben (oder abgebrochen): bleibt liegen, wo es ist (nur nicht auf der Punktkarte); aus dem Korb genommen →
+  // die übrigen rücken auf (kein Rückwärtszählen)
+  if (d.imKorb && !imFang(d)) {
+    d.imKorb = false;
+    kb.imKorb = kb.imKorb.filter((x) => x !== d);
+    korbKarteFuellen();
+  }
+  if (d.imKorb) korbPlaetzeSetzen(); else nichtAufDieKarte(d);
+  korbPlaetzeSetzen();
+}
+
+// Ein abgelegtes Ding verdeckt nie die Punktkarte (sie zeigt, wie viele noch fehlen): sanft daneben rutschen
+function nichtAufDieKarte(d) {
+  const { karte, S } = kb.mass;
+  const ueber = d.x + S / 2 > karte.x && d.x - S / 2 < karte.x + karte.s && d.y + S / 2 > karte.y && d.y - S / 2 < karte.y + karte.s;
+  if (!ueber) return;
+  const links = d.x < karte.x + karte.s / 2;
+  const x = links ? karte.x - S / 2 - 6 : karte.x + karte.s + S / 2 + 6;
+  dingSetzen(d, x, d.y);
+  if (d.x + S / 2 > karte.x && d.x - S / 2 < karte.x + karte.s) dingSetzen(d, links ? karte.x + karte.s + S / 2 + 6 : karte.x - S / 2 - 6, d.y);
+}
+document.addEventListener('pointerup', (e) => korbLoslassen(e, false));
+// Abbruch (Anruf, Wisch vom Rand) wie Loslassen: nichts soll ungezählt im Korb liegen bleiben
+document.addEventListener('pointercancel', (e) => korbLoslassen(e, false));
+
+// Ankommen: auf den nächsten freien Platz gleiten, Ring auf der Karte füllen, neue Zahl sagen; genug → Runde fertig
+async function korbEinlegen(d) {
+  const nr = kb.nummer;
+  d.imKorb = true;
+  kb.imKorb.push(d);
+  dingSetzen(d, ...korbPlatz(kb.imKorb.length - 1));
+  korbKarteFuellen();
+  const k = kb.imKorb.length;
+  kb.versuche = 0;   // es geht voran: die Hilfe beginnt von vorn
+  kb.letztesAnkommen = Date.now();
+  const fertig = k >= kbRunde().n;
+  if (fertig) { kb.gesperrt = true; clearTimeout(kb.timer); }
+  if (!fertig) korbHilfeAbwarten(nr);
+  if (!(await korbZahlSagen(nr, k))) return;
+  if (!fertig) return;
+  await warten(KORB_ZEIT.fertigPause);
+  korbRundeFertig(nr);
+}
+
+// Zahlwörter in einer Reihe: jedes Ankommen hört sein ganzes Wort, auch wenn das Kind schnell nachlegt
+// (ist das Ding inzwischen wieder herausgenommen, wird die überholte Zahl nicht mehr gesagt)
+function korbZahlSagen(nr, k) {
+  const sp = kb.sprech;
+  sp.offen++;
+  sp.kette = sp.kette.then(() => (k <= kb.imKorb.length ? kbAnsage(nr, `korb-zahl-${k}`) : null))
+    .finally(() => { sp.offen--; });
+  return sp.kette.then(() => kbAktuell(nr));
+}
+
+async function korbRundeFertig(nr) {
+  if (!kbAktuell(nr)) return;
+  const { n, ding } = kbRunde();
+  kb.imKorb.forEach((d) => d.el.classList.add('leuchtet'));
+  kb.dinge.filter((d) => !d.imKorb).forEach((d) => d.el.classList.add('blass'));
+  glockenspiel();
+  await warten(300);
+  if (!(await kbAnsage(nr, `korb-fertig-${n}-${ding}`))) return;
+  kb.runde++;
+  kbRundenZeichnen();
+  await warten(KORB_ZEIT.rundenPause);
+  if (!kbAktuell(nr)) return;
+  if (kb.runde < KORB_RUNDEN) korbNeueRunde(); else korbAuftrag();
+}
+
+// ----- Hilfe ohne „falsch“: eine Weile kein Ankommen = ein Versuch -----
+
+function korbHilfeAbwarten(nr) {
+  clearTimeout(kb.timer);
+  if (kb.versuche >= 3) return;
+  const rest = KORB_ZEIT.versuch - (Date.now() - kb.letztesAnkommen);
+  kb.timer = setTimeout(() => korbVersuch(nr), Math.max(50, rest));
+}
+
+async function korbVersuch(nr) {
+  if (!kbAktuell(nr) || kb.gesperrt) return;
+  // Das Kind schiebt gerade, die App spricht eine Zahl oder hilft schon: später nochmal schauen
+  if (kb.ziehen || kb.sprech.offen || kb.hilfeLaeuft) { kb.timer = setTimeout(() => korbVersuch(nr), 1000); return; }
+  // Inzwischen ist etwas angekommen: die Uhr läuft ab da
+  if (Date.now() - kb.letztesAnkommen < KORB_ZEIT.versuch) { korbHilfeAbwarten(nr); return; }
+  kb.versuche++;
+  const { n, ding } = kbRunde();
+  if (kb.versuche === 3) { korbLoesung(nr); return; }
+  kb.hilfeLaeuft = true;
+  if (kb.versuche === 1) {
+    animieren($('#korb-feld .korb-karte'), 'pulsiert');
+    await kbAnsage(nr, `korb-leg-${n}-${ding}`);
+  } else {
+    // Mitzählen, was schon drin ist, dann zeigt eine Hand den Weg vom Vorrat zum Korb
+    if (kb.imKorb.length) await kbZaehlen(nr, `zaehlen-${kb.imKorb.length}`, kb.imKorb.map((d) => d.el));
+    kb.imKorb.forEach((d) => d.el.classList.remove('leuchtet'));
+    await korbHandZeigen(nr);
+  }
+  kb.hilfeLaeuft = false;
+  if (!kbAktuell(nr) || kb.gesperrt) return;
+  kb.letztesAnkommen = Date.now();   // nach der Hilfe wieder eine Weile Zeit
+  korbHilfeAbwarten(nr);
+}
+
+// Eine helle Hand nimmt ein halb durchsichtiges Ding mit vom Vorrat in den Korb – zweimal (zeigt „festhalten und
+// mitnehmen“); das echte Ding bleibt liegen, das Kind macht es dann selbst
+async function korbHandZeigen(nr, d = kb.dinge.find((x) => !x.imKorb)) {
+  if (!d) return kbAktuell(nr);
+  const { S, kx, ky, kw, kh } = kb.mass;
+  const geist = document.createElement('div');
+  geist.className = 'geist-hand';
+  geist.innerHTML = `<div class="geist-ding" style="width:${S}px;height:${S}px">${d.el.innerHTML}</div><span>👆</span>`;
+  $('#korb-feld').appendChild(geist);
+  for (let i = 0; i < 2 && kbAktuell(nr); i++) {
+    geist.style.transition = 'none';
+    geist.style.opacity = '0';
+    geist.style.transform = `translate(${d.x - S / 2}px, ${d.y - S / 2}px)`;
+    void geist.offsetWidth;
+    geist.style.transition = '';
+    geist.style.opacity = '0.8';
+    geist.style.transform = `translate(${kx + kw / 2 - S / 2}px, ${ky + kh * 0.4 - S / 2}px)`;
+    await warten(1500);
+    geist.style.opacity = '0';
+    await warten(350);
+  }
+  geist.remove();
+  return kbAktuell(nr);
+}
+
+// Lösung: die fehlenden Dinge fliegen ruhig nacheinander hinein, jedes mit seiner Zahl – dann wie sonst fertig
+async function korbLoesung(nr) {
+  kb.gesperrt = true;
+  clearTimeout(kb.timer);
+  while (kbAktuell(nr) && kb.imKorb.length < kbRunde().n) {
+    const d = kb.dinge.find((x) => !x.imKorb);
+    d.imKorb = true;
+    kb.imKorb.push(d);
+    dingSetzen(d, ...korbPlatz(kb.imKorb.length - 1));
+    korbKarteFuellen();
+    if (!(await korbZahlSagen(nr, kb.imKorb.length))) return;
+    await warten(KORB_ZEIT.loesungSchritt);
+  }
+  korbRundeFertig(nr);
+}
+
+// ----- Echte Welt: „Leg zwei Bausteine in einen Becher!“ – 👍 für Erwachsene, dann zählt die App mit -----
+
+async function korbAuftrag() {
+  korbStoppen();
+  const nr = kb.nummer;
+  kb.auftrag = true;
+  kb.fertig = false;
+  $('#btn-korb-daumen').hidden = true;
+  kb.weltMenge = kb.weltMenge || zufall([2, 3]);
+  const feld = $('#korb-feld');
+  feld.innerHTML = `<div class="korb-welt">${KORB_WELT.map((b) => `<div class="welt-bild kommt">${b}</div>`).join('')}</div>`;
+  if (!(await kbAnsage(nr, `korb-welt-${kb.weltMenge}`))) return;
+  auftragAbwarten({ z: kb, nr, aktuell: kbAktuell, knopf: $('#btn-korb-daumen'),
+    sagen: (nr2) => kbAnsage(nr2, `korb-welt-${kb.weltMenge}`), erledigt: korbAuftragErledigt, zeit: KORB_ZEIT });
+}
+
+async function korbAuftragErledigt(nr) {
+  if (kb.fertig) return;
+  kb.fertig = true;
+  kb.gesperrt = true;
+  clearTimeout(kb.timer);
+  $('#btn-korb-daumen').hidden = true;
+  document.querySelectorAll('#korb-feld .welt-bild').forEach((b) => b.classList.add('leuchtet'));
+  if (!(await kbAnsage(nr, `korb-welt-${kb.weltMenge}-fertig`))) return;
+  glockenspiel();
+  await warten(400);
+  if (!(await kbAnsage(nr, 'ende-korb'))) return;
+  spielEnde('korb', korbNeu);
+}
+
+$('#btn-korb-daumen').addEventListener('click', () => { audio(); if (!kb.gesperrt && kb.auftrag) korbAuftragErledigt(kb.nummer); });
+
+function korbNeu() {
+  korbStoppen();
+  Object.assign(kb, { runde: 0, runden: korbRundenPlanen(), auftrag: false, fertig: false, weltMenge: 0, dinge: [], imKorb: [] });
+  $('#btn-korb-daumen').hidden = true;
+  kbRundenZeichnen();
+  korbNeueRunde();
+}
+
+function korbStarten() {
+  spielEndeWeg('korb');
+  zeigen('korb');
+  korbNeu();
+}
+SPIELE.korb = korbStarten;
+
+$('#btn-korb-home').addEventListener('click', () => { korbStoppen(); wiedergabeStoppen(); zurStartseite(); });
+// 🔊: Auftrag nochmal (nicht während das Kind schiebt oder die App spricht); laufende Zeiten bleiben
+$('#btn-korb-laut').addEventListener('click', () => {
+  const ende = $('#korb .spiel-ende');
+  if ((ende && !ende.hidden) || kb.fertig || kb.gesperrt || kb.ziehen || kb.sprech.offen) return;
+  audio();
+  const nr = kb.nummer;
+  const name = kb.auftrag ? `korb-welt-${kb.weltMenge}` : `korb-leg-${kbRunde().n}-${kbRunde().ding}`;
+  if (kb.auftrag) {
+    kb.gesperrt = true;
+    kbAnsage(nr, name).then((ok) => { if (ok && !kb.fertig) kb.gesperrt = false; });
+    return;
+  }
+  // In der Runde: Auftrag nochmal, Schieben bleibt möglich, die Hilfe-Uhr läuft weiter
+  animieren($('#korb-feld .korb-karte'), 'pulsiert');
+  kbAnsage(nr, name);
+});
+
 // ---------- Elternbereich (2 Sekunden gedrückt halten) ----------
 
 (() => {
@@ -1120,11 +1570,16 @@ function elternZeichnen() {
   });
   pauseWahlZeichnen();
   spielOptionenZeigen();
-  $('#weniger').checked = !!speicher.lesen('weniger', false);
+  document.querySelectorAll('#karte-regal [data-option]').forEach((box) => { box.checked = !!speicher.lesen(box.dataset.option, false); });
 }
 
-$('#weniger').addEventListener('change', (e) => { speicher.schreiben('weniger', e.target.checked); einstellungenLaden(); });
-$('#kind-weniger').addEventListener('change', (e) => kindAendern((k) => { k.weniger = e.target.checked; }));
+document.querySelectorAll('#karte-regal [data-option]').forEach((box) => box.addEventListener('change', () => {
+  speicher.schreiben(box.dataset.option, box.checked);
+  einstellungenLaden();
+}));
+document.querySelectorAll('#kind [data-option]').forEach((box) => box.addEventListener('change', () => {
+  kindAendern((k) => { k[box.dataset.option] = box.checked; });
+}));
 
 $('#btn-eltern-zurueck').addEventListener('click', zurStartseite);
 
@@ -1158,7 +1613,8 @@ async function kindNeu() {
     tier: TIERE.find((t) => !kinder.some((k) => k.tier === t)) || TIERE[0],
     // Das erste Kind übernimmt das bisherige Regal
     spieleAus: erstesKind ? appWeitAus() : START_AUS,
-    weniger: erstesKind ? !!speicher.lesen('weniger', false) : false,
+    // Spiel-Schalter: das erste Kind übernimmt die app-weiten
+    ...Object.fromEntries(SPIEL_OPTIONEN.map((o) => [o, erstesKind ? !!speicher.lesen(o, false) : false])),
     erstellt: Date.now(),
   };
   await datenbank.kindSpeichern(kind);
@@ -1207,7 +1663,7 @@ function kindFormularZeichnen() {
   $('#btn-kind-foto-weg').hidden = !k.foto;
   regalWahlZeichnen($('#kind-spiele'), regalVon(k.spieleAus || START_AUS), (neu) => kindAendern((kk) => { kk.spieleAus = ausVon(neu); }));
   spielOptionenZeigen();
-  $('#kind-weniger').checked = !!k.weniger;
+  document.querySelectorAll('#kind [data-option]').forEach((box) => { box.checked = !!k[box.dataset.option]; });
 }
 
 $('#kind-name').addEventListener('change', (e) => {

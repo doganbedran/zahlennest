@@ -20,6 +20,11 @@ hinzufügen“. Elternbereich: ⚙️ oben rechts 2 Sekunden halten. Fragen und 
   paarweise gegenüber („Schau mal!“), beim zweiten Mal zählt die App beide Teller, beim dritten zeigt sie die Lösung.
   Im Elternbereich je Kind: nach 4 Runden auch „Wo sind weniger?“. Zum Schluss: „Zeig mir deine Augen! Und jetzt
   deine Nase!“ – „Zwei Augen und eine Nase. Da sind mehr Augen!“
+- 🧺 **In den Korb zählen** (3–4) – „Leg drei Äpfel in den Korb.“ (Auftrag als Punktkarte, keine Ziffer). Das Kind
+  schiebt die Dinge mit dem Finger in den Korb, bei jedem Ankommen sagt die App die neue Zahl; sind es genug, leuchten
+  alle: „Drei Äpfel!“. Daneben bleibt liegen, Herausnehmen geht. Ohne Tun: Auftrag nochmal, dann Mitzählen und eine
+  Hand zeigt den Weg, dann legt die App den Rest hinein. Je Kind: Mengen bis 5 (sonst 1–3), Antippen statt Schieben.
+  Zum Schluss: „Leg drei Bausteine in einen Becher!“
 
 ## Lizenz
 - Programmcode und eigene Zeichnungen (`bilder/`, Symbol): [GNU AGPL 3.0](LICENSE)

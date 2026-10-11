@@ -307,3 +307,35 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 .welt-bild.leuchtet { box-shadow: 0 0 0 6px #f5c518; }
 .welt-bild.kommt { animation: aufploppen 0.4s ease-out; }
 @media (prefers-reduced-motion: reduce) { .ding { transition: none; } .teller.pulsiert { animation: none; } }
+
+/* ---------- In den Korb ---------- */
+/* Schieben: die ganze Spielfläche ohne Browser-Gesten (kein Scrollen, kein Zurückwischen) */
+#korb, .korb-feld { touch-action: none; overscroll-behavior: none; }
+.korb-feld { flex: 1; position: relative; min-height: 0; }
+#korb .daumen-platz { position: fixed; left: 0; right: 0; bottom: max(40px, 8vh); margin: 0; min-height: 0; z-index: 7; }
+.korb-ding { position: absolute; left: 0; top: 0; padding: 0; border: none; background: none; touch-action: none; z-index: 2;
+  transition: transform 0.28s ease-out, opacity 0.3s; }
+.korb-ding svg { width: 100%; height: 100%; display: block; overflow: visible; transition: transform 0.15s; }
+/* gegriffen: folgt dem Finger ohne Verzögerung, 10 % größer, über allem */
+.korb-ding.greift { transition: none; z-index: 5; }
+.korb-ding.greift svg { transform: scale(1.1); }
+.korb-ding.huepft svg { animation: ding-huepfen 0.4s ease; }
+.korb-ding.blass { opacity: 0.35; }
+.korb-ding .halo { fill: #f5c518; stroke: #b07800; stroke-width: 2; opacity: 0; transition: opacity 0.2s; }
+.korb-ding.leuchtet .halo { opacity: 1; }
+.korb-korb { position: absolute; pointer-events: none; z-index: 1; }
+.korb-korb svg { width: 100%; height: 100%; display: block; overflow: visible; }
+/* Auftrag als Punktkarte (keine Ziffer): Ringe füllen sich bei jedem Ankommen */
+.korb-karte { position: absolute; background: var(--papier); border-radius: 18px; box-shadow: var(--schatten); z-index: 3; pointer-events: none; }
+.korb-karte svg { width: 100%; height: 100%; display: block; }
+.korb-karte .karte-punkt { fill: var(--papier); stroke: #4a3f35; stroke-width: 4; transition: fill 0.2s; }
+.korb-karte .karte-punkt.voll { fill: #4a3f35; }
+.korb-karte.pulsiert { animation: warten-puls 1.6s ease-in-out 2; }
+.geist-hand { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 6; opacity: 0;
+  transition: transform 1.2s ease-in-out, opacity 0.3s; }
+.geist-hand .geist-ding { opacity: 0.55; }
+.geist-hand .geist-ding svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.geist-hand span { position: absolute; left: 40%; top: 45%; font-size: 3rem; line-height: 1; }
+.welt-bild svg { width: 70%; height: 70%; }
+.korb-welt { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 24px; }
+@media (prefers-reduced-motion: reduce) { .korb-ding { transition: opacity 0.3s; } .geist-hand { transition: opacity 0.3s; } }

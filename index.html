@@ -134,6 +134,17 @@
     <div class="daumen-platz"><button id="btn-mehr-daumen" class="daumen-btn" aria-label="Gemacht" hidden>👍</button></div>
   </section>
 
+  <!-- In den Korb zählen: Dinge aus dem Vorrat in den Korb schieben, jedes Ankommen zählt („eins … zwei … drei“) -->
+  <section id="korb" class="screen">
+    <header class="topbar">
+      <button id="btn-korb-home" class="icon-btn" aria-label="Zurück">🏠</button>
+      <div id="korb-runden" class="runden-eier"></div>
+      <button id="btn-korb-laut" class="icon-btn" aria-label="Nochmal hören">🔊</button>
+    </header>
+    <div id="korb-feld" class="korb-feld"></div>
+    <div class="daumen-platz"><button id="btn-korb-daumen" class="daumen-btn" aria-label="Gemacht" hidden>👍</button></div>
+  </section>
+
   <!-- Pause: ruhiges Bild, nur 🏠 (gilt auch nach einer Pause in Wortnest) -->
   <section id="pause" class="screen">
     <div class="spiel-pause">
@@ -162,8 +173,12 @@
         <p class="hinweis">Welche Spiele auf der Startseite stehen. Lieber wenige: Ein neues Spiel erst ins Regal
           stellen, wenn Sie es einmal zusammen ausprobiert haben.</p>
         <div id="spiele-wahl" class="regal-wahl"></div>
-        <label class="umschalter spiel-option" data-spiel="mehr"><input type="checkbox" id="weniger">
+        <label class="umschalter spiel-option" data-spiel="mehr"><input type="checkbox" id="weniger" data-option="weniger">
           „Mehr oder weniger?“: nach 4 Runden auch „Wo sind weniger?“ fragen (eher ab 4)</label>
+        <label class="umschalter spiel-option" data-spiel="korb"><input type="checkbox" id="korbBis5" data-option="korbBis5">
+          „In den Korb“: Mengen 3 bis 5 (sonst 1 bis 3)</label>
+        <label class="umschalter spiel-option" data-spiel="korb"><input type="checkbox" id="korbTippen" data-option="korbTippen">
+          „In den Korb“: Antippen statt Schieben (das Ding fliegt von selbst hinein)</label>
       </div>
 
       <div class="karte">
@@ -218,10 +233,16 @@
         <p class="hinweis">Welche Spiele dieses Kind auf der Startseite sieht. Lieber wenige: Ein neues Spiel erst ins
           Regal stellen, wenn Sie es einmal zusammen ausprobiert haben.</p>
         <div id="kind-spiele" class="regal-wahl"></div>
-        <label class="umschalter spiel-option" data-spiel="mehr"><input type="checkbox" id="kind-weniger">
+        <label class="umschalter spiel-option" data-spiel="mehr"><input type="checkbox" id="kind-weniger" data-option="weniger">
           „Mehr oder weniger?“: nach 4 Runden auch „Wo sind weniger?“ fragen</label>
         <p class="hinweis spiel-option" data-spiel="mehr">„Weniger“ ist schwerer als „mehr“ (eher ab 4) – erst
           einschalten, wenn „mehr“ sicher klappt.</p>
+        <label class="umschalter spiel-option" data-spiel="korb"><input type="checkbox" id="kind-korbBis5" data-option="korbBis5">
+          „In den Korb“: Mengen 3 bis 5 (sonst 1 bis 3)</label>
+        <label class="umschalter spiel-option" data-spiel="korb"><input type="checkbox" id="kind-korbTippen" data-option="korbTippen">
+          „In den Korb“: Antippen statt Schieben (das Ding fliegt von selbst hinein)</label>
+        <p class="hinweis spiel-option" data-spiel="korb">Schieben übt die Hand und das Zählen zugleich. „Antippen“ hilft,
+          wenn das Schieben noch schwerfällt.</p>
       </div>
       <div class="karte">
         <div class="knopf-reihe">

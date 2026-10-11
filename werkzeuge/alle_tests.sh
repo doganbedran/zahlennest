@@ -30,6 +30,10 @@ LAEUFE=(
   "mehr-klein|tests/mehr.html|360,640|120"
   "mehr-tab|tests/mehr.html|1280,800|120"
   "mehr-quer|tests/mehr.html|860,412|120"
+  "korb|tests/korb.html|412,860|150"
+  "korb-klein|tests/korb.html|360,640|150"
+  "korb-tab|tests/korb.html|1280,800|150"
+  "korb-quer|tests/korb.html|860,412|150"
   "offline|tests/offline.html|412,860|60"
 )
 fehler=0
