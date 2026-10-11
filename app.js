@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 7;
+const APP_VERSION = 8;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -1121,8 +1121,9 @@ const KORB_WELT = [
   '<svg viewBox="0 0 100 100" aria-hidden="true"><rect x="14" y="40" width="72" height="42" rx="6" fill="#d23c2c" stroke="#4a3f35" stroke-width="4"/>'
     + '<rect x="22" y="26" width="20" height="16" rx="4" fill="#d23c2c" stroke="#4a3f35" stroke-width="4"/>'
     + '<rect x="58" y="26" width="20" height="16" rx="4" fill="#d23c2c" stroke="#4a3f35" stroke-width="4"/></svg>',
-  '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M24 22 L32 86 Q50 92 68 86 L76 22 Z" fill="#7fb3d5" stroke="#4a3f35" stroke-width="4" stroke-linejoin="round"/>'
-    + '<ellipse cx="50" cy="22" rx="26" ry="7" fill="#cfe3f0" stroke="#4a3f35" stroke-width="4"/></svg>',
+  // Becher in zwei Ebenen: hinten die Öffnung, vorn Körper mit vorderem Rand – die Bausteine liegen dazwischen
+  { hinten: '<svg viewBox="0 0 100 100" aria-hidden="true"><ellipse cx="50" cy="22" rx="26" ry="7" fill="#3f6f93" stroke="#4a3f35" stroke-width="4"/></svg>',
+    vorn: '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M24 22 A26 7 0 0 0 76 22 L68 86 Q50 92 32 86 Z" fill="#7fb3d5" stroke="#4a3f35" stroke-width="4" stroke-linejoin="round"/></svg>' },
 ];
 const kb = { runde: 0, runden: [], dinge: [], imKorb: [], versuche: 0, gesperrt: true, timer: null, nummer: 0,
   ziehen: null, mass: null, auftrag: false, fertig: false, weltMenge: 0,
@@ -1486,7 +1487,7 @@ async function korbAuftrag() {
   // So viele kleine Bausteine, wie gesagt wurden, daneben ein großer Becher; nach 👍 fliegt bei jeder Zahl einer hinein
   feld.innerHTML = `<div class="korb-welt"><div class="welt-kloetze">${
     Array.from({ length: kb.weltMenge }, () => `<div class="welt-klotz kommt">${KORB_WELT[0]}</div>`).join('')}</div>`
-    + `<div class="welt-becher kommt">${KORB_WELT[1]}</div></div>`;
+    + `<div class="welt-becher kommt"><div class="becher-hinten">${KORB_WELT[1].hinten}</div><div class="becher-vorn">${KORB_WELT[1].vorn}</div></div></div>`;
   if (!(await kbAnsage(nr, `korb-welt-${kb.weltMenge}`))) return;
   auftragAbwarten({ z: kb, nr, aktuell: kbAktuell, knopf: $('#btn-korb-daumen'),
     sagen: (nr2) => kbAnsage(nr2, `korb-welt-${kb.weltMenge}`), erledigt: korbAuftragErledigt, zeit: KORB_ZEIT });
@@ -1498,13 +1499,15 @@ async function korbAuftragErledigt(nr) {
   kb.gesperrt = true;
   clearTimeout(kb.timer);
   $('#btn-korb-daumen').hidden = true;
-  // Ziel jedes Bausteins: in die Öffnung des Bechers, übereinander gestapelt (der Becher liegt davor)
+  // Ziel jedes Bausteins: in die Öffnung des Bechers, übereinander gestapelt – die obere Hälfte schaut heraus
+  // (der Becher liegt davor), so sieht das Kind, dass sie drin sind
   const becher = $('#korb-feld .welt-becher').getBoundingClientRect();
   const kloetze = [...document.querySelectorAll('#korb-feld .welt-klotz')];
   kloetze.forEach((k, i) => {
     const r = k.getBoundingClientRect();
+    k.classList.remove('kommt');   // Einblenden ist vorbei: sonst kann die alte Animation den Flug verhindern
     k.style.setProperty('--zx', `${becher.left + becher.width / 2 - (r.left + r.width / 2)}px`);
-    k.style.setProperty('--zy', `${becher.top + becher.height * (0.32 - i * 0.12) - (r.top + r.height / 2)}px`);
+    k.style.setProperty('--zy', `${becher.top + becher.height * 0.27 - r.height * 0.3 * i - (r.top + r.height / 2)}px`);
   });
   if (!(await kbZaehlen(nr, `korb-welt-${kb.weltMenge}-fertig`, kloetze))) return;
   glockenspiel();

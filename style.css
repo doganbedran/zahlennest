@@ -341,10 +341,19 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .korb-ding { transition: opacity 0.3s; } .geist-hand { transition: opacity 0.3s; } }
 /* Echte Welt im Korb-Spiel: kleine Bausteine neben einem großen Becher; beim Mitzählen fliegt je einer hinein */
 .korb-welt .welt-kloetze { display: flex; flex-direction: column; gap: 14px; align-self: center; }
-.welt-klotz { width: min(84px, 20vw, 13dvh); aspect-ratio: 1; position: relative; z-index: 1;
-  transition: transform 0.6s ease-in-out; }
+.welt-klotz { width: min(84px, 20vw, 13dvh); aspect-ratio: 1; position: relative; z-index: 1; }
 .welt-klotz svg, .welt-becher svg { width: 100%; height: 100%; display: block; }
-.welt-klotz.leuchtet { transform: translate(var(--zx, 0), var(--zy, 0)) scale(0.85); }
-.welt-becher { width: min(190px, 44vw, 30dvh); aspect-ratio: 1; position: relative; z-index: 2; }
+/* Becher ohne eigene Ebene (kein z-index), damit die Bausteine zwischen Öffnung (hinten) und Körper (vorn) liegen */
+.welt-becher { width: min(190px, 44vw, 30dvh); aspect-ratio: 1; position: relative; }
+.welt-becher .becher-hinten, .welt-becher .becher-vorn { position: absolute; inset: 0; }
+.welt-becher .becher-hinten { z-index: 0; }
+.welt-becher .becher-vorn { z-index: 2; }
 .welt-klotz.kommt, .welt-becher.kommt { animation: aufploppen 0.4s ease-out; }
-@media (prefers-reduced-motion: reduce) { .welt-klotz { transition: transform 0.2s; } }
+/* Flug in den Becher (eigene Animation mit Bogen; bleibt am Ziel stehen) – ausgelöst beim Mitzählen */
+.welt-klotz.leuchtet { animation: in-den-becher 1s ease-in-out forwards; }
+@keyframes in-den-becher {
+  0% { transform: translate(0, 0); }
+  55% { transform: translate(calc(var(--zx) * 0.6), calc(var(--zy) * 0.6 - 70px)) scale(0.95); }
+  100% { transform: translate(var(--zx), var(--zy)) scale(0.85); }
+}
+@media (prefers-reduced-motion: reduce) { .welt-klotz.leuchtet { animation-duration: 0.3s; } }
