@@ -275,3 +275,35 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .mengen-karte.pulsiert, .daumen-btn { animation: none; box-shadow: 0 0 0 6px var(--akzent-hell); }
 }
+
+/* ---------- Mehr oder weniger? ---------- */
+.kachel-bild { width: 78%; height: auto; }
+.regal-spiel span .kachel-bild, .kind-zeile .kachel-bild { width: 1.6em; vertical-align: -0.35em; }
+.umschalter { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 1rem; }
+.umschalter input { width: 22px; height: 22px; accent-color: var(--akzent); flex: none; }
+
+/* Zwei Teller immer übereinander (Partner beim Paaren stehen genau untereinander); Größe nach Breite und Höhe */
+.teller-paar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; }
+.teller { width: min(330px, 86vw, calc((100dvh - 190px) / 2 * 300 / 180)); aspect-ratio: 300 / 180; border: none;
+  background: none; padding: 0; border-radius: 50%; transition: opacity 0.3s; }
+.teller svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.teller .rand { fill: #fff; stroke: #c7b08a; stroke-width: 4; }
+.teller .mitte { fill: #f6efe3; }
+.teller.kommt { animation: aufploppen 0.4s ease-out; }
+.teller.wackelt { animation: wackeln 0.6s ease; }
+.teller.huepft { animation: huepfen 0.6s ease; }
+.teller.richtig .rand { stroke: var(--akzent); stroke-width: 8; }
+.teller.pulsiert { animation: teller-puls 1.6s ease-in-out infinite; }
+@keyframes teller-puls { 50% { transform: scale(1.04); } }
+.ding { transition: transform 0.5s ease-in-out; }
+.ding-innen { transform-box: fill-box; transform-origin: center; }
+.ding-innen.huepft { animation: ding-huepfen 0.4s ease; }
+@keyframes ding-huepfen { 40% { transform: translateY(-14px) scale(1.1); } }
+.ding .halo { fill: #f5c518; stroke: #b07800; stroke-width: 2; opacity: 0; transition: opacity 0.2s; }
+.ding.leuchtet .halo { opacity: 1; }
+/* Auftrag echte Welt: zwei Bilder übereinander (z. B. 👀 und 👃) */
+.welt-bild { width: min(200px, 50vw, 24dvh); aspect-ratio: 1; border-radius: 28px; background: var(--papier);
+  box-shadow: var(--schatten); display: grid; place-items: center; font-size: min(6rem, 14dvh); }
+.welt-bild.leuchtet { box-shadow: 0 0 0 6px #f5c518; }
+.welt-bild.kommt { animation: aufploppen 0.4s ease-out; }
+@media (prefers-reduced-motion: reduce) { .ding { transition: none; } .teller.pulsiert { animation: none; } }

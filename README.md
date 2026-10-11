@@ -15,6 +15,11 @@ hinzufügen“. Elternbereich: ⚙️ oben rechts 2 Sekunden halten. Fragen und 
   👀 „Das sind zwei.“ → 👂 „Wo sind drei?“ → 🗣️ „Wie viele sind das? Sag es!“. Daneben getippt: Die App benennt,
   beim zweiten Mal zählt sie mit (Punkte leuchten), beim dritten zeigt sie die Lösung. Zum Schluss: „Zeig mir zwei
   Finger!“ – ein Erwachsener tippt 👍, die App zählt die Finger mit.
+- **Mehr oder weniger?** (ab 3, Kachel: zwei Teller) – zwei Teller mit Äpfeln, Eiern oder Bällen: „Wo sind mehr?“.
+  8 Runden, erst große Unterschiede (1:4), dann kleinere (1:2), nie knapp. Daneben getippt: Die Dinge stellen sich
+  paarweise gegenüber („Schau mal!“), beim zweiten Mal zählt die App beide Teller, beim dritten zeigt sie die Lösung.
+  Im Elternbereich je Kind: nach 4 Runden auch „Wo sind weniger?“. Zum Schluss: „Zeig mir deine Augen! Und jetzt
+  deine Nase!“ – „Zwei Augen und eine Nase. Da sind mehr Augen!“
 
 ## Lizenz
 - Programmcode und eigene Zeichnungen (`bilder/`, Symbol): [GNU AGPL 3.0](LICENSE)

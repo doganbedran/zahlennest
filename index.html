@@ -102,7 +102,7 @@
     <!-- Spiele: große Symbole, die Kinder ohne Lesen verstehen; sichtbar nur, was fertig und im Regal ist -->
     <nav class="spiele-raster" aria-label="Spiele">
       <button class="spiel-btn" data-spiel="wieviele" aria-label="Wie viele?" hidden>✋</button>
-      <button class="spiel-btn" data-spiel="mehr" aria-label="Mehr oder weniger?" hidden>⚖️</button>
+      <button class="spiel-btn" data-spiel="mehr" aria-label="Mehr oder weniger?" hidden><svg class="kachel-bild" viewBox="0 0 120 100" aria-hidden="true"><ellipse cx="30" cy="50" rx="27" ry="27" fill="#fff" stroke="#c7b08a" stroke-width="2.5"/><ellipse cx="30" cy="50" rx="20" ry="20" fill="#f6efe3"/><ellipse cx="90" cy="50" rx="27" ry="27" fill="#fff" stroke="#c7b08a" stroke-width="2.5"/><ellipse cx="90" cy="50" rx="20" ry="20" fill="#f6efe3"/><circle cx="19" cy="39" r="7" fill="#d23c2c" stroke="#4a3f35" stroke-width="1.5"/><circle cx="41" cy="39" r="7" fill="#d23c2c" stroke="#4a3f35" stroke-width="1.5"/><circle cx="30" cy="50" r="7" fill="#d23c2c" stroke="#4a3f35" stroke-width="1.5"/><circle cx="19" cy="61" r="7" fill="#d23c2c" stroke="#4a3f35" stroke-width="1.5"/><circle cx="41" cy="61" r="7" fill="#d23c2c" stroke="#4a3f35" stroke-width="1.5"/><circle cx="90" cy="50" r="7" fill="#d23c2c" stroke="#4a3f35" stroke-width="1.5"/></svg></button>
       <button class="spiel-btn" data-spiel="korb" aria-label="In den Korb zählen" hidden>🧺</button>
       <button class="spiel-btn" data-spiel="trommel" aria-label="Zahlen-Trommel" hidden>🥁</button>
       <button class="spiel-btn" data-spiel="holmir" aria-label="Hol mir …" hidden>🥄</button>
@@ -121,6 +121,17 @@
     <div id="wieviele-symbol" class="stufen-symbol" aria-hidden="true">👀</div>
     <div id="wieviele-karten" class="mengen-karten"></div>
     <div class="daumen-platz"><button id="btn-wieviele-daumen" class="daumen-btn" aria-label="Gemacht" hidden>👍</button></div>
+  </section>
+
+  <!-- Mehr oder weniger? Zwei Teller, das Kind tippt den mit mehr (bzw. weniger); daneben: Dinge stellen sich paarweise auf -->
+  <section id="mehr" class="screen">
+    <header class="topbar">
+      <button id="btn-mehr-home" class="icon-btn" aria-label="Zurück">🏠</button>
+      <div id="mehr-runden" class="runden-eier"></div>
+      <button id="btn-mehr-laut" class="icon-btn" aria-label="Nochmal hören">🔊</button>
+    </header>
+    <div id="mehr-teller" class="teller-paar"></div>
+    <div class="daumen-platz"><button id="btn-mehr-daumen" class="daumen-btn" aria-label="Gemacht" hidden>👍</button></div>
   </section>
 
   <!-- Pause: ruhiges Bild, nur 🏠 (gilt auch nach einer Pause in Wortnest) -->
@@ -151,6 +162,8 @@
         <p class="hinweis">Welche Spiele auf der Startseite stehen. Lieber wenige: Ein neues Spiel erst ins Regal
           stellen, wenn Sie es einmal zusammen ausprobiert haben.</p>
         <div id="spiele-wahl" class="regal-wahl"></div>
+        <label class="umschalter spiel-option" data-spiel="mehr"><input type="checkbox" id="weniger">
+          „Mehr oder weniger?“: nach 4 Runden auch „Wo sind weniger?“ fragen (eher ab 4)</label>
       </div>
 
       <div class="karte">
@@ -205,6 +218,10 @@
         <p class="hinweis">Welche Spiele dieses Kind auf der Startseite sieht. Lieber wenige: Ein neues Spiel erst ins
           Regal stellen, wenn Sie es einmal zusammen ausprobiert haben.</p>
         <div id="kind-spiele" class="regal-wahl"></div>
+        <label class="umschalter spiel-option" data-spiel="mehr"><input type="checkbox" id="kind-weniger">
+          „Mehr oder weniger?“: nach 4 Runden auch „Wo sind weniger?“ fragen</label>
+        <p class="hinweis spiel-option" data-spiel="mehr">„Weniger“ ist schwerer als „mehr“ (eher ab 4) – erst
+          einschalten, wenn „mehr“ sicher klappt.</p>
       </div>
       <div class="karte">
         <div class="knopf-reihe">

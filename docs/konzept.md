@@ -31,7 +31,7 @@ Start mit **„Wie viele?“** (Entscheidung User), dann:
 1. **Wie viele?** (ab 3) – Drei-Stufen-Lektion: „Das sind zwei.“ → „Wo sind drei?“ → „Wie viele sind das? Sag es!“.
    Würfel-Punktbilder + Fingerbild, nur 1–3. Stufe 3 ohne Prüfung (Stimme sagt die Antwort nach Pause).
    Basis: „Zeig mir“ aus Wortnest.
-2. **Mehr oder weniger?** (ab 3) – zwei Körbe, ganzen Korb antippen. Erst nur „mehr“, große Unterschiede (1:4),
+2. **Mehr oder weniger?** (ab 3) – zwei Teller (Entscheidung User: Teller statt Körbe, damit es sich von „In den Korb“ unterscheidet), ganzen Teller antippen. Erst nur „mehr“, große Unterschiede (1:4),
    nie 3:4 am Anfang. Daneben: Dinge stellen sich paarweise gegenüber (Eins-zu-eins sichtbar).
 3. **In den Korb zählen** (3–4) – „Leg drei Äpfel in den Korb.“ (Punktbild, keine Ziffer). Vorrat oben (Dinge 80–90 px,
    24 px Abstand, ≥ 40 px vom Rand), Freiraum, Korb unten (~300×200). Jedes Ankommen zählt („eins … zwei … drei“),
@@ -58,7 +58,7 @@ Abzählverse. Nicht digital: Numerische Stangen, echtes Bündeln – die App reg
   (≈ Pfeil-Orange bei Protan), Beere (≈ Pfeil-Orange bei Tritan).
 - Symbol: weiße „3“ (Andika 700) im Nest, gelber Punkt `#fde26c` oben rechts – Bauplan der Gestaltungsrichtlinie.
   Idee: Startbild mit drei Eiern im Nest.
-- Kacheln: Wie viele ✋ · Mehr/weniger eigenes SVG (voller + fast leerer Korb) · In den Korb 🧺 · Trommel 🥁 ·
+- Kacheln: Wie viele ✋ · Mehr/weniger eigenes SVG (voller + fast leerer Teller) · In den Korb 🧺 · Trommel 🥁 ·
   Hol mir 🥄. 🏠 oben links, ⚙️ 2 s halten, wie Wortnest.
 
 ## Familie, Daten, Pause

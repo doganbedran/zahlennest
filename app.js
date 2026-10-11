@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 3;
+const APP_VERSION = 4;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -115,7 +115,7 @@ const START_AUS = ALLE_SPIELE.filter((id) => !START_REGAL.includes(id));
 // Für Eltern: was jedes Spiel tut (die Kacheln zeigen den Kindern nur ein Bild)
 const SPIEL_INFO = {
   wieviele: 'Mengen 1 bis 3 auf einen Blick erkennen',
-  mehr: 'Zwei Körbe: Wo sind mehr? Wo sind weniger?',
+  mehr: 'Zwei Teller: Wo sind mehr? (auf Wunsch auch: Wo sind weniger?)',
   korb: 'Dinge in den Korb schieben und dabei zählen',
   trommel: 'So oft trommeln, wie gesagt wird',
   holmir: 'Echte Dinge holen und zusammen zählen (mit Erwachsenem)',
@@ -131,6 +131,12 @@ const appWeitAus = () => speicher.lesen('spieleAus', START_AUS);
 function einstellungenLaden() {
   const k = aktivesKind();
   zustand.spiele = regalVon(k ? (k.spieleAus || START_AUS) : appWeitAus());
+  zustand.weniger = k ? !!k.weniger : speicher.lesen('weniger', false);
+}
+
+// Einstellungen einzelner Spiele nur zeigen, wenn es das Spiel schon gibt
+function spielOptionenZeigen() {
+  document.querySelectorAll('.spiel-option').forEach((el) => { el.hidden = !SPIELE[el.dataset.spiel]; });
 }
 
 function regalWahlZeichnen(box, gewaehlt, aendern) {
@@ -322,6 +328,7 @@ function zeigen(id, verlauf = true) {
 window.addEventListener('popstate', () => {
   wiedergabeStoppen();
   wievieleStoppen();
+  mehrStoppen();
   const ziel = (history.state && history.state.screen) || 'home';
   // Infoseite von der Begrüßung aus geöffnet: dorthin zurück
   if (ziel === 'home' && $('#info').classList.contains('active') && infoVonBegruessung) {
@@ -460,8 +467,11 @@ const wv = { stufe: 0, schritt: 0, punkte: 0, auftraege: [], ziel: 0, versuche: 
   timer: null, nummer: 0, letzterTipp: 0, auftragMenge: 0, fertig: false, letztesEnde: null };
 
 const wvAktuell = (nr) => nr === wv.nummer && $('#wieviele').classList.contains('active');
-const wvAnsage = (nr, name) => folgeAbspielen([{ url: `audio/ansage-${name}.wav` }], ANSAGEN[name][0]).then(() => wvAktuell(nr));
-const wvZaehlen = (nr, name, elemente) => zaehlenMitLeuchten(name, elemente).then(() => wvAktuell(nr));
+// Erst prüfen, ob das Spiel noch offen ist, dann sprechen (z. B. 🏠 während einer kurzen Wartepause davor)
+const wvAnsage = (nr, name) => (wvAktuell(nr)
+  ? folgeAbspielen([{ url: `audio/ansage-${name}.wav` }], ANSAGEN[name][0]).then(() => wvAktuell(nr)) : Promise.resolve(false));
+const wvZaehlen = (nr, name, elemente) => (wvAktuell(nr)
+  ? zaehlenMitLeuchten(name, elemente).then(() => wvAktuell(nr)) : Promise.resolve(false));
 const benennen = (n) => `wieviele-${n}`;
 
 // Würfelbild: 3×3-Raster, gleich große Punkte in gleichem Abstand (1 = Mitte, 2 = Diagonale, 3 = Diagonale ganz)
@@ -768,6 +778,316 @@ $('#btn-wieviele-laut').addEventListener('click', () => {
   wvSchritt();
 });
 
+// ---------- Mehr oder weniger? Zwei Teller vergleichen ----------
+
+// 8 Runden: erst große Unterschiede (1:4 …), dann kleinere (1:2 …) – nie knapp (3:4, 4:5) und nie gleich viele.
+// Mit „weniger“ (Eltern-Schalter je Kind): 4× „Wo sind mehr?“, angesagter Wechsel, 4× „Wo sind weniger?“ (nie gemischt,
+// dann wieder die großen Unterschiede). Kein „falsch“: 1. Daneben = die Dinge stellen sich paarweise auf (Eins-zu-eins),
+// 2. = die App zählt beide Teller, 3. = Lösung zeigen und weiter. Der Teller mit weniger wird nie blass oder traurig.
+const MEHR_PAARE = { gross: [[1, 4], [1, 5], [2, 5], [1, 3]], klein: [[1, 2], [2, 4], [3, 5], [2, 5]] };
+const MEHR_ZEIT = { nochmalFragen: 8000, pause: 900, paarSchritt: 450, zeigen: 3000, daumen: 2500, auftragNochmal: 12000,
+  auftragEnde: 30000 };
+const MEHR_ENDE = ['ende-verglichen', 'ende-hingeschaut'];
+// Auftrag in zwei Teilen mit Zeit zum Zeigen dazwischen: [Bild, Ansage] – das gerade gemeinte Bild leuchtet
+const MEHR_WELT = { augen: [['👀', 'welt-augen'], ['👃', 'welt-nase']], haende: [['🙌', 'welt-haende'], ['👄', 'welt-mund']] };
+// Dinge: gleich groß (Kreis mit Radius 18), schlicht, dunkler Rand – heben sich auch über die Helligkeit vom Teller ab
+const DINGE = {
+  apfel: '<circle r="17" cy="2" fill="#d23c2c" stroke="#4a3f35" stroke-width="2.5"/>'
+    + '<path d="M0 -14 q1 -6 5 -8" fill="none" stroke="#4a3f35" stroke-width="3" stroke-linecap="round"/>'
+    + '<ellipse cx="8" cy="-14" rx="6" ry="3" fill="#4c9a3a" transform="rotate(-25 8 -14)"/>',
+  ei: '<ellipse rx="14" ry="18" fill="#fffdf7" stroke="#4a3f35" stroke-width="2.5"/>',
+  ball: '<circle r="17" fill="#1d5fbf" stroke="#4a3f35" stroke-width="2.5"/>'
+    + '<path d="M-16 -3 Q0 -12 16 -3" fill="none" stroke="#fff" stroke-width="3"/>',
+};
+// Würfelbild im festen Raster (gleicher Abstand in beiden Richtungen); 1–3 wie in „Wie viele?“
+const MEHR_STELLEN = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]],
+  4: [[-1, -1], [1, -1], [-1, 1], [1, 1]], 5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]] };
+const MEHR_ABSTAND = 46;
+const mw = { runde: 0, runden: [], versuche: 0, mitHilfe: 0, gepaart: false, gesperrt: true, timer: null, nummer: 0, letzterTipp: 0,
+  fertig: false, welt: null, letztesEnde: null, auftrag: false };
+
+const mwAktuell = (nr) => nr === mw.nummer && $('#mehr').classList.contains('active');
+const mwAnsage = (nr, name) => (mwAktuell(nr)
+  ? folgeAbspielen([{ url: `audio/ansage-${name}.wav` }], ANSAGEN[name][0]).then(() => mwAktuell(nr)) : Promise.resolve(false));
+const mwZaehlen = (nr, name, elemente) => (mwAktuell(nr)
+  ? zaehlenMitLeuchten(name, elemente).then(() => mwAktuell(nr)) : Promise.resolve(false));
+const mwRunde = () => mw.runden[mw.runde];
+const mwTeller = () => [...document.querySelectorAll('#mehr-teller .teller')];
+const mwDinge = (teller) => [...teller.querySelectorAll('.ding')];
+
+function mehrStoppen() {
+  clearTimeout(mw.timer);
+  mw.nummer++;
+  mw.gesperrt = true;
+}
+
+// Rundenplan: Mengen, welcher Teller voller ist (höchstens zweimal hintereinander dieselbe Seite), Ding, Frage
+function mehrRundenPlanen() {
+  const paare = zustand.weniger
+    ? [...mischen(MEHR_PAARE.gross), ...mischen(MEHR_PAARE.gross)]
+    : [...mischen(MEHR_PAARE.gross), ...mischen(MEHR_PAARE.klein)];
+  // Der gesuchte Teller liegt höchstens zweimal hintereinander auf derselben Seite (auch beim Wechsel zu „weniger“)
+  const ziele = [];
+  let ding = null;
+  return paare.map(([wenig, viel], i) => {
+    ding = zufall(Object.keys(DINGE).filter((d) => d !== ding));
+    const zweiGleich = ziele.length >= 2 && ziele[ziele.length - 1] === ziele[ziele.length - 2];
+    const ziel = zweiGleich ? 1 - ziele[ziele.length - 1] : zufall([0, 1]);
+    ziele.push(ziel);
+    const frage = zustand.weniger && i >= 4 ? 'weniger' : 'mehr';
+    const gesucht = frage === 'mehr' ? viel : wenig;
+    const mengen = ziel === 0 ? [gesucht, gesucht === viel ? wenig : viel] : [gesucht === viel ? wenig : viel, gesucht];
+    return { mengen, ding, frage, ziel };
+  });
+}
+
+// Stiller Rückschritt: Hat das Kind in den ersten vier Runden zweimal Hilfe beim Zählen gebraucht, bleiben auch die
+// Runden 5–8 bei großen Unterschieden (keine Meldung, keine Zahl über das Kind)
+function mehrLeichterWeiter() {
+  if (mw.mitHilfe < 2 || zustand.weniger) return;
+  mischen(MEHR_PAARE.gross).forEach(([wenig, viel], k) => {
+    const r = mw.runden[4 + k];
+    r.mengen = r.ziel === 0 ? [viel, wenig] : [wenig, viel];
+  });
+}
+
+function tellerSvg(n, ding) {
+  const dinge = MEHR_STELLEN[n].map(([dx, dy]) => `<g class="ding" style="transform: translate(${150 + dx * MEHR_ABSTAND}px, ${
+    90 + dy * MEHR_ABSTAND}px)"><g class="ding-innen"><circle class="halo" r="23"/>${DINGE[ding]}</g></g>`).join('');
+  return `<svg viewBox="0 0 300 180" aria-hidden="true"><ellipse class="rand" cx="150" cy="90" rx="146" ry="86"/>`
+    + `<ellipse class="mitte" cx="150" cy="90" rx="124" ry="68"/>${dinge}</svg>`;
+}
+
+function mwRundenZeichnen() {
+  let n = 0;
+  $('#mehr-runden').innerHTML = [4, 4].map((anzahl) => `<span class="gruppe">${
+    Array.from({ length: anzahl }, () => `<span class="${n++ < mw.runde ? 'voll' : ''}"></span>`).join('')}</span>`).join('');
+}
+
+async function mehrNeueRunde() {
+  mehrStoppen();
+  const nr = mw.nummer;
+  const r = mwRunde();
+  mw.versuche = 0;
+  mw.gepaart = false;
+  const box = $('#mehr-teller');
+  box.replaceChildren(...r.mengen.map((n, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'teller kommt';
+    btn.innerHTML = tellerSvg(n, r.ding);
+    btn.setAttribute('aria-label', `Teller ${i + 1}`);
+    btn.addEventListener('click', () => mehrGetippt(i, btn));
+    return btn;
+  }));
+  await warten(450);
+  if (!mwAktuell(nr)) return;
+  // Erste Runde bzw. Wechsel zu „weniger“: mit Einleitung
+  const wechsel = mw.runde === 0 || (r.frage === 'weniger' && mw.runden[mw.runde - 1].frage !== 'weniger');
+  mehrFragen(nr, wechsel ? `${r.frage}-start` : `${r.frage}-wo`);
+}
+
+async function mehrFragen(nr, ansageName = `${mwRunde().frage}-wo`) {
+  if (!mwAktuell(nr)) return;
+  mw.gesperrt = true;
+  if (!(await mwAnsage(nr, ansageName))) return;
+  mw.gesperrt = false;
+  // Nichts getippt: nochmal fragen; danach stellen sich die Dinge still paarweise auf (zählt nicht als Versuch)
+  clearTimeout(mw.timer);
+  mw.timer = setTimeout(async () => {
+    if (!mwAktuell(nr) || mw.gesperrt) return;
+    mw.gesperrt = true;
+    if (!(await mwAnsage(nr, `${mwRunde().frage}-wo`))) return;
+    mw.gesperrt = false;
+    mw.timer = setTimeout(async () => {
+      if (!mwAktuell(nr) || mw.gesperrt) return;
+      mw.gesperrt = true;
+      if (!mw.gepaart && !(await mehrPaaren(nr))) return;
+      if (!(await mwAnsage(nr, `${mwRunde().frage}-wo`))) return;
+      mw.gesperrt = false;
+      mwTeller()[mwRunde().ziel].classList.add('pulsiert');
+    }, MEHR_ZEIT.nochmalFragen);
+  }, MEHR_ZEIT.nochmalFragen);
+}
+
+// Eins-zu-eins: die Dinge beider Teller rutschen in je eine Reihe, gleiche Spalten untereinander; dann hüpfen die
+// Paare nacheinander, zuletzt die übrigen (die zeigen, wo mehr sind)
+async function mehrPaaren(nr) {
+  const reihen = mwTeller().map(mwDinge);
+  const breit = Math.max(...reihen.map((r) => r.length));
+  const schmal = Math.min(...reihen.map((r) => r.length));
+  // Oberer Teller: Reihe unten, unterer Teller: Reihe oben – so stehen sich die Paare nah gegenüber
+  reihen.forEach((dinge, t) => dinge.forEach((d, i) => {
+    d.style.transform = `translate(${150 + (i - (breit - 1) / 2) * 50}px, ${t === 0 ? 128 : 52}px)`;
+  }));
+  mw.gepaart = true;
+  await warten(600);
+  // Bei „mehr“ hüpfen zum Schluss die Übrigen (dort sind mehr); bei „weniger“ nur die Paare, dann die kurze Reihe
+  const weniger = mwRunde().frage === 'weniger';
+  for (let i = 0; i < (weniger ? schmal : breit); i++) {
+    if (!mwAktuell(nr)) return false;
+    reihen.forEach((dinge) => dinge[i] && animieren(dinge[i].firstChild, 'huepft'));
+    await warten(MEHR_ZEIT.paarSchritt);
+  }
+  if (weniger && mwAktuell(nr)) {
+    reihen.find((r) => r.length === schmal).forEach((d) => animieren(d.firstChild, 'huepft'));
+    await warten(MEHR_ZEIT.paarSchritt);
+  }
+  return mwAktuell(nr);
+}
+
+async function mehrGetippt(i, btn) {
+  const jetzt = performance.now();
+  if (mw.gesperrt || mw.auftrag || jetzt - mw.letzterTipp < 400) return;
+  mw.letzterTipp = jetzt;
+  audio();
+  clearTimeout(mw.timer);
+  const nr = mw.nummer;
+  const r = mwRunde();
+  mw.gesperrt = true;
+  mwTeller().forEach((t) => t.classList.remove('pulsiert'));
+  if (i === r.ziel) {
+    btn.classList.add('richtig');
+    animieren(btn, 'huepft');
+    glockenspiel();
+    await warten(400);
+    if (!(await mwAnsage(nr, `${r.frage}-hier`))) return;
+    await warten(MEHR_ZEIT.pause);
+    mehrWeiter(nr);
+    return;
+  }
+  mw.versuche++;
+  const ziel = mwTeller()[r.ziel];
+  if (mw.versuche === 1) {
+    // Daneben: „Schau mal!“, Paare bilden – dann die Frage nochmal (kein Wackeln: wirkte wie ein Kopfschütteln)
+    if (!(await mwAnsage(nr, 'schau-mal'))) return;
+    if (!(await mehrPaaren(nr))) return;
+    await warten(300);
+    mehrFragen(nr);
+  } else if (mw.versuche === 2) {
+    // Hilfe: beide Teller zählen, erst den mit weniger, dann den mit mehr
+    if (mw.runde < 4) mw.mitHilfe++;
+    const nachMenge = mwTeller().map((t, k) => [r.mengen[k], mwDinge(t)]).sort((a, b) => a[0] - b[0]);
+    for (const [n, dinge] of nachMenge) {
+      if (!(await mwZaehlen(nr, `zaehlen-${n}`, dinge))) return;
+      await warten(500);
+    }
+    mwTeller().forEach((t) => mwDinge(t).forEach((d) => d.classList.remove('leuchtet')));
+    mehrFragen(nr);
+  } else {
+    ziel.classList.add('richtig');
+    animieren(ziel, 'huepft');
+    if (!(await mwAnsage(nr, `${r.frage}-hier`))) return;
+    await warten(MEHR_ZEIT.pause);
+    mehrWeiter(nr);
+  }
+}
+
+function mehrWeiter(nr) {
+  if (!mwAktuell(nr)) return;
+  mw.runde++;
+  mwRundenZeichnen();
+  if (mw.runde === 4) mehrLeichterWeiter();
+  if (mw.runde < mw.runden.length) { mehrNeueRunde(); return; }
+  glockenspiel();
+  mehrAuftrag();
+}
+
+// Echte Welt am eigenen Körper: „Zeig mir deine Augen! Und jetzt deine Nase!“ → „Zwei Augen und eine Nase …“
+// 👍 nur für Erwachsene, erscheint nach kurzer Zeit; nach einer Weile einmal nochmal, viel später von selbst weiter.
+async function mehrAuftrag() {
+  mehrStoppen();
+  const nr = mw.nummer;
+  mw.auftrag = true;
+  mw.fertig = false;
+  $('#btn-mehr-daumen').hidden = true;
+  mw.welt = mw.welt || zufall(Object.keys(MEHR_WELT));
+  const box = $('#mehr-teller');
+  box.replaceChildren(...MEHR_WELT[mw.welt].map(([bild]) => {
+    const el = document.createElement('div');
+    el.className = 'welt-bild kommt';
+    el.textContent = bild;
+    return el;
+  }));
+  if (!(await mehrAuftragSagen(nr))) return;
+  mw.gesperrt = false;
+  const beginn = Date.now();
+  mw.timer = setTimeout(() => {
+    if (!mwAktuell(nr)) return;
+    $('#btn-mehr-daumen').hidden = false;
+    mw.timer = setTimeout(async () => {
+      if (!mwAktuell(nr) || mw.gesperrt) return;
+      mw.gesperrt = true;
+      if (!(await mehrAuftragSagen(nr))) return;
+      mw.gesperrt = false;
+      const rest = Math.max(0, MEHR_ZEIT.auftragEnde - (Date.now() - beginn));
+      mw.timer = setTimeout(() => mwAktuell(nr) && !mw.gesperrt && mehrAuftragErledigt(nr), rest);
+    }, MEHR_ZEIT.auftragNochmal - MEHR_ZEIT.daumen);
+  }, MEHR_ZEIT.daumen);
+}
+
+// „Zeig mir deine Augen!“ – Zeit zum Zeigen – „Und jetzt deine Nase!“; das gemeinte Bild leuchtet
+async function mehrAuftragSagen(nr) {
+  const bilder = [...document.querySelectorAll('#mehr-teller .welt-bild')];
+  for (const [i, [, ansageName]] of MEHR_WELT[mw.welt].entries()) {
+    bilder.forEach((b, k) => b.classList.toggle('leuchtet', k === i));
+    if (!(await mwAnsage(nr, ansageName))) return false;
+    await warten(i === 0 ? MEHR_ZEIT.zeigen : 0);
+  }
+  bilder.forEach((b) => b.classList.remove('leuchtet'));
+  return mwAktuell(nr);
+}
+
+async function mehrAuftragErledigt(nr) {
+  if (mw.fertig) return;
+  mw.fertig = true;
+  mw.gesperrt = true;
+  clearTimeout(mw.timer);
+  $('#btn-mehr-daumen').hidden = true;
+  const erstes = $('#mehr-teller .welt-bild');
+  if (erstes) erstes.classList.add('leuchtet');
+  if (!(await mwAnsage(nr, `welt-${mw.welt}-fertig`))) return;
+  glockenspiel();
+  await warten(400);
+  if (!mwAktuell(nr)) return;
+  mw.letztesEnde = zufall(MEHR_ENDE.filter((e) => e !== mw.letztesEnde));
+  if (!(await mwAnsage(nr, mw.letztesEnde))) return;
+  spielEnde('mehr', mehrNeu);
+}
+
+$('#btn-mehr-daumen').addEventListener('click', () => { audio(); if (!mw.gesperrt && mw.auftrag) mehrAuftragErledigt(mw.nummer); });
+
+function mehrNeu() {
+  mehrStoppen();
+  Object.assign(mw, { runde: 0, runden: mehrRundenPlanen(), fertig: false, auftrag: false, welt: null, mitHilfe: 0 });
+  $('#btn-mehr-daumen').hidden = true;
+  mwRundenZeichnen();
+  mehrNeueRunde();
+}
+
+function mehrStarten() {
+  spielEndeWeg('mehr');
+  zeigen('mehr');
+  mehrNeu();
+}
+SPIELE.mehr = mehrStarten;
+
+$('#btn-mehr-home').addEventListener('click', () => { mehrStoppen(); wiedergabeStoppen(); zurStartseite(); });
+// 🔊: Frage (bzw. Auftrag) nochmal; die Teller bleiben, wie sie sind; während die App spricht oder zählt: nichts
+$('#btn-mehr-laut').addEventListener('click', () => {
+  const ende = $('#mehr .spiel-ende');
+  if ((ende && !ende.hidden) || mw.fertig || mw.gesperrt) return;
+  audio();
+  if (mw.auftrag) {
+    // Auftrag nur nochmal sagen: 👍 bleibt stehen, die Zeiten des Auftrags laufen weiter
+    mw.gesperrt = true;
+    mehrAuftragSagen(mw.nummer).then((ok) => { if (ok) mw.gesperrt = false; });
+    return;
+  }
+  clearTimeout(mw.timer);
+  mw.nummer++;
+  mehrFragen(mw.nummer);
+});
+
 // ---------- Elternbereich (2 Sekunden gedrückt halten) ----------
 
 (() => {
@@ -799,7 +1119,12 @@ function elternZeichnen() {
     elternZeichnen();
   });
   pauseWahlZeichnen();
+  spielOptionenZeigen();
+  $('#weniger').checked = !!speicher.lesen('weniger', false);
 }
+
+$('#weniger').addEventListener('change', (e) => { speicher.schreiben('weniger', e.target.checked); einstellungenLaden(); });
+$('#kind-weniger').addEventListener('change', (e) => kindAendern((k) => { k.weniger = e.target.checked; }));
 
 $('#btn-eltern-zurueck').addEventListener('click', zurStartseite);
 
@@ -811,7 +1136,7 @@ function kinderListeZeichnen() {
   kinder.forEach((k) => {
     // Beschreiben statt zählen: welche Spiele das Kind sieht (keine Punkte, nichts zum Vergleichen)
     const spiele = regalVon(k.spieleAus || START_AUS).filter((id) => SPIELE[id])
-      .map((id) => $(`#home .spiel-btn[data-spiel="${id}"]`).textContent).join(' ');
+      .map((id) => $(`#home .spiel-btn[data-spiel="${id}"]`).innerHTML).join(' ');
     const zeile = document.createElement('button');
     zeile.className = 'kind-zeile';
     zeile.innerHTML = `<span class="kind-bild">${kindBildHtml(k)}</span>`
@@ -833,6 +1158,7 @@ async function kindNeu() {
     tier: TIERE.find((t) => !kinder.some((k) => k.tier === t)) || TIERE[0],
     // Das erste Kind übernimmt das bisherige Regal
     spieleAus: erstesKind ? appWeitAus() : START_AUS,
+    weniger: erstesKind ? !!speicher.lesen('weniger', false) : false,
     erstellt: Date.now(),
   };
   await datenbank.kindSpeichern(kind);
@@ -880,6 +1206,8 @@ function kindFormularZeichnen() {
   });
   $('#btn-kind-foto-weg').hidden = !k.foto;
   regalWahlZeichnen($('#kind-spiele'), regalVon(k.spieleAus || START_AUS), (neu) => kindAendern((kk) => { kk.spieleAus = ausVon(neu); }));
+  spielOptionenZeigen();
+  $('#kind-weniger').checked = !!k.weniger;
 }
 
 $('#kind-name').addEventListener('change', (e) => {

@@ -26,6 +26,10 @@ LAEUFE=(
   "wieviele-klein|tests/wieviele.html|360,640|90"
   "wieviele-tab|tests/wieviele.html|1280,800|90"
   "wieviele-quer|tests/wieviele.html|860,412|90"
+  "mehr|tests/mehr.html|412,860|120"
+  "mehr-klein|tests/mehr.html|360,640|120"
+  "mehr-tab|tests/mehr.html|1280,800|120"
+  "mehr-quer|tests/mehr.html|860,412|120"
   "offline|tests/offline.html|412,860|60"
 )
 fehler=0
