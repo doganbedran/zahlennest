@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Lokaler Testserver. Wie `python3 -m http.server`, plus /_warten?ms=N (antwortet verzögert).
+"""Lokaler Testserver. Wie `python3 -m http.server`, plus /_warten?ms=N&id=X (antwortet verzögert).
 Testseiten binden /_warten als iframe ein, damit das load-Ereignis (und damit ein Screenshot)
-erst nach asynchronen Tests kommt.
+erst nach asynchronen Tests kommt. Meldet der Test /_fertig?id=X, antwortet /_warten sofort – ms ist nur die
+Höchstzeit (sonst wartete jeder Lauf die volle Zeit, auch wenn der Test längst fertig ist).
 Fürs Aufnahme-Studio (werkzeuge/aufnahme-studio.html): POST /_speichern?datei=<name>.wav legt die Aufnahme in
 audio/ ab – nur von der Studio-Seite selbst (Origin/Host geprüft, sonst könnte jede fremde Webseite im Browser
 hierher schreiben). Jede gespeicherte Datei kommt in audio/sprecher.json: Das ist die Liste der Dateien mit der
@@ -10,6 +11,7 @@ Lauscht nur auf diesem Rechner; mit --lan auch im WLAN (z. B. zum Testen am Hand
 import json
 import re
 import sys
+import threading
 import time
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -28,11 +30,33 @@ def sprecher_merken(ordner, datei):
     liste.write_text(json.dumps(sorted(dateien), indent=0) + '\n', encoding='utf-8')
 
 
+FERTIG = {}                     # Test-ID -> Ereignis „Test ist fertig“
+FERTIG_SPERRE = threading.Lock()
+
+
+def fertig_ereignis(test_id):
+    with FERTIG_SPERRE:
+        return FERTIG.setdefault(test_id, threading.Event())
+
+
 class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         url = urlparse(self.path)
+        frage = parse_qs(url.query)
+        if url.path == '/_fertig':
+            fertig_ereignis(frage.get('id', [''])[0]).set()
+            self.send_response(204)
+            self.end_headers()
+            return
         if url.path == '/_warten':
-            time.sleep(int(parse_qs(url.query).get('ms', ['3000'])[0]) / 1000)
+            hoechstens = int(frage.get('ms', ['3000'])[0]) / 1000
+            test_id = frage.get('id', [None])[0]
+            if test_id:
+                fertig_ereignis(test_id).wait(hoechstens)
+                with FERTIG_SPERRE:
+                    FERTIG.pop(test_id, None)   # nächster Lauf derselben Seite beginnt neu
+            else:
+                time.sleep(hoechstens)
             self.send_response(200)
             self.send_header('Content-Type', 'text/html')
             self.end_headers()

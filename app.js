@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 6;
+const APP_VERSION = 7;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -1116,7 +1116,7 @@ $('#btn-mehr-laut').addEventListener('click', () => {
 const KORB_RUNDEN = 4;
 const KORB_ZEIT = { versuch: 12000, fertigPause: 600, rundenPause: 900, loesungSchritt: 700, daumen: 2500,
   auftragNochmal: 12000, auftragEnde: 30000 };
-// Echte Welt: eigene Zeichnungen (Emoji 🧱 wäre ein Ziegelstein, 🥤 ein Becher mit Strohhalm)
+// Echte Welt: eigene Zeichnungen (Emoji 🧱 wäre ein Ziegelstein, 🥤 ein Becher mit Strohhalm): [Baustein, Becher]
 const KORB_WELT = [
   '<svg viewBox="0 0 100 100" aria-hidden="true"><rect x="14" y="40" width="72" height="42" rx="6" fill="#d23c2c" stroke="#4a3f35" stroke-width="4"/>'
     + '<rect x="22" y="26" width="20" height="16" rx="4" fill="#d23c2c" stroke="#4a3f35" stroke-width="4"/>'
@@ -1483,7 +1483,10 @@ async function korbAuftrag() {
   $('#btn-korb-daumen').hidden = true;
   kb.weltMenge = kb.weltMenge || zufall([2, 3]);
   const feld = $('#korb-feld');
-  feld.innerHTML = `<div class="korb-welt">${KORB_WELT.map((b) => `<div class="welt-bild kommt">${b}</div>`).join('')}</div>`;
+  // So viele kleine Bausteine, wie gesagt wurden, daneben ein großer Becher; nach 👍 fliegt bei jeder Zahl einer hinein
+  feld.innerHTML = `<div class="korb-welt"><div class="welt-kloetze">${
+    Array.from({ length: kb.weltMenge }, () => `<div class="welt-klotz kommt">${KORB_WELT[0]}</div>`).join('')}</div>`
+    + `<div class="welt-becher kommt">${KORB_WELT[1]}</div></div>`;
   if (!(await kbAnsage(nr, `korb-welt-${kb.weltMenge}`))) return;
   auftragAbwarten({ z: kb, nr, aktuell: kbAktuell, knopf: $('#btn-korb-daumen'),
     sagen: (nr2) => kbAnsage(nr2, `korb-welt-${kb.weltMenge}`), erledigt: korbAuftragErledigt, zeit: KORB_ZEIT });
@@ -1495,8 +1498,15 @@ async function korbAuftragErledigt(nr) {
   kb.gesperrt = true;
   clearTimeout(kb.timer);
   $('#btn-korb-daumen').hidden = true;
-  document.querySelectorAll('#korb-feld .welt-bild').forEach((b) => b.classList.add('leuchtet'));
-  if (!(await kbAnsage(nr, `korb-welt-${kb.weltMenge}-fertig`))) return;
+  // Ziel jedes Bausteins: in die Öffnung des Bechers, übereinander gestapelt (der Becher liegt davor)
+  const becher = $('#korb-feld .welt-becher').getBoundingClientRect();
+  const kloetze = [...document.querySelectorAll('#korb-feld .welt-klotz')];
+  kloetze.forEach((k, i) => {
+    const r = k.getBoundingClientRect();
+    k.style.setProperty('--zx', `${becher.left + becher.width / 2 - (r.left + r.width / 2)}px`);
+    k.style.setProperty('--zy', `${becher.top + becher.height * (0.32 - i * 0.12) - (r.top + r.height / 2)}px`);
+  });
+  if (!(await kbZaehlen(nr, `korb-welt-${kb.weltMenge}-fertig`, kloetze))) return;
   glockenspiel();
   await warten(400);
   if (!(await kbAnsage(nr, 'ende-korb'))) return;

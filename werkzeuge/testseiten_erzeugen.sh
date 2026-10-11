@@ -11,7 +11,10 @@ seite() {
   # Begrüßung beim ersten Start überspringen (außer im Test dafür)
   [ "$name" != willkommen ] && vorher='  localStorage.setItem("zn:willkommen", "true");'$'\n'"$vorher"
   local nachher="  <script src=\"tests/$name.js\"></script>"
-  [ "$warten" != 0 ] && nachher+=$'\n'"  <iframe src=\"/_warten?ms=$warten\" hidden></iframe>"
+  # Sobald unten die Ergebnisleiste (OK/FEHLER/ABSTURZ) erscheint, dem Testserver „fertig“ melden: dann kommt das
+  # Bildschirmfoto gleich und nicht erst nach der Höchstzeit
+  nachher+=$'\n'"  <script>new MutationObserver((_, b) => { const l = [...document.body.children].find((e) => e.style && e.style.bottom === '0px' && /OK|FEHLER|ABSTURZ/.test(e.textContent)); if (l) { b.disconnect(); setTimeout(() => fetch('/_fertig?id=$name'), 400); } }).observe(document.body, { childList: true });</script>"
+  [ "$warten" != 0 ] && nachher+=$'\n'"  <iframe src=\"/_warten?ms=$warten&id=$name\" hidden></iframe>"
   VORHER="$vorher" NACHHER="$nachher" /usr/bin/python3 - "$name" <<'PY'
 import os, sys
 s = open('index.html', encoding='utf-8').read()
