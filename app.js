@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 9;
+const APP_VERSION = 10;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -1209,7 +1209,7 @@ function korbPlatz(i) {
   const { S, g } = kb.mass;
   const schritt = S + g;   // gleicher Abstand wie im Vorrat
   const [sx, reihe] = [[-1, 0], [0, 0], [1, 0], [-0.5, 1], [0.5, 1]][i];
-  return [kx + kw / 2 + sx * schritt, ky + kh * 0.36 + reihe * schritt];
+  return [kx + kw / 2 + sx * schritt, ky + kh * (reihe ? 0.39 : 0.27)];
 }
 function vorratPlatz(i) {
   const { vorratX, vorratY, S, g } = kb.mass;
@@ -1223,14 +1223,19 @@ function dingSetzen(d, x, y) {
   d.el.style.transform = `translate(${d.x - S / 2}px, ${d.y - S / 2}px)`;
 }
 
-// Korb wie 🧺: oben breiter als unten, geflochten (helle Bänder quer, dunkle Ruten senkrecht), großer Henkel über
-// die ganze Breite (ein kleiner Griff oben sah aus wie ein Koffer)
-const korbSvg = '<svg viewBox="0 0 300 200" aria-hidden="true">'
-  + '<path d="M34 66 Q150 -62 266 66" fill="none" stroke="#9a6430" stroke-width="12" stroke-linecap="round"/>'
-  + '<path d="M16 62 L284 62 L254 190 Q150 202 46 190 Z" fill="#c98f4e" stroke="#7a4b20" stroke-width="5" stroke-linejoin="round"/>'
-  + [96, 128, 160].map((y) => `<path d="M${16 + (y - 62) * 0.23} ${y} Q150 ${y + 8} ${284 - (y - 62) * 0.23} ${y}" fill="none" stroke="#e8bd84" stroke-width="12"/>`).join('')
-  + [60, 100, 150, 200, 240].map((x) => `<path d="M${x} 64 L${150 + (x - 150) * 0.78} 194" stroke="#8a5526" stroke-width="4"/>`).join('')
-  + '<rect x="8" y="50" width="284" height="22" rx="11" fill="#a8743a" stroke="#7a4b20" stroke-width="4"/></svg>';
+// Korb wie 🧺 (oben breiter, geflochten, großer Henkel – ein kleiner Griff sah aus wie ein Koffer), in zwei Ebenen
+// wie der Becher: hinten Henkel und Öffnung (dunkles Inneres), vorn die geflochtene Seite mit vorderem Rand – die
+// Dinge liegen dazwischen, ihr unterer Teil steckt im Korb
+const KORB_SVG = {
+  hinten: '<svg viewBox="0 0 300 200" aria-hidden="true">'
+    + '<path d="M30 68 Q150 -70 270 68" fill="none" stroke="#9a6430" stroke-width="12" stroke-linecap="round"/>'
+    + '<ellipse cx="150" cy="70" rx="136" ry="34" fill="#6e421e" stroke="#a8743a" stroke-width="12"/></svg>',
+  vorn: '<svg viewBox="0 0 300 200" aria-hidden="true">'
+    + '<path d="M14 70 A136 34 0 0 0 286 70 L256 190 Q150 202 44 190 Z" fill="#c98f4e" stroke="#7a4b20" stroke-width="5" stroke-linejoin="round"/>'
+    + [130, 160].map((y) => `<path d="M${14 + (y - 70) * 0.25} ${y} Q150 ${y + 10} ${286 - (y - 70) * 0.25} ${y}" fill="none" stroke="#e8bd84" stroke-width="12"/>`).join('')
+    + [70, 110, 150, 190, 230].map((x) => `<path d="M${x} ${70 + 34 * Math.sqrt(1 - ((x - 150) / 136) ** 2) + 4} L${150 + (x - 150) * 0.8} 194" stroke="#8a5526" stroke-width="4"/>`).join('')
+    + '<path d="M14 70 A136 34 0 0 0 286 70" fill="none" stroke="#a8743a" stroke-width="12" stroke-linecap="round"/></svg>',
+};
 
 function korbKarteSvg(n) {
   return `<svg viewBox="0 0 100 100" aria-hidden="true">${MEHR_STELLEN[n].map(([dx, dy]) => `<circle class="karte-punkt" cx="${
@@ -1252,8 +1257,9 @@ function korbAnordnen() {
   if (!kb.dinge.length || !feld.clientWidth) return;
   kb.mass = korbMasse(kb.dinge.length);
   const { S, kx, ky, kw, kh, karte } = kb.mass;
-  const korbEl = feld.querySelector('.korb-korb');
-  Object.assign(korbEl.style, { left: `${kx}px`, top: `${ky}px`, width: `${kw}px`, height: `${kh}px` });
+  feld.querySelectorAll('.korb-korb').forEach((korbEl) => {
+    Object.assign(korbEl.style, { left: `${kx}px`, top: `${ky}px`, width: `${kw}px`, height: `${kh}px` });
+  });
   const karteEl = feld.querySelector('.korb-karte');
   Object.assign(karteEl.style, { left: `${karte.x}px`, top: `${karte.y}px`, width: `${karte.s}px`, height: `${karte.s}px` });
   const gegriffen = kb.ziehen && kb.ziehen.d;
@@ -1282,7 +1288,8 @@ async function korbNeueRunde() {
   kb.imKorb = [];
   kb.sprech = { kette: Promise.resolve(), offen: 0 };   // eigene Reihe je Runde (alte Wörter zählen nicht hinein)
   const feld = $('#korb-feld');
-  feld.innerHTML = `<div class="korb-korb">${korbSvg}</div><div class="korb-karte">${korbKarteSvg(n)}</div>`;
+  feld.innerHTML = `<div class="korb-korb">${KORB_SVG.hinten}</div><div class="korb-korb korb-vorn">${KORB_SVG.vorn}</div>`
+    + `<div class="korb-karte">${korbKarteSvg(n)}</div>`;
   kb.dinge = Array.from({ length: n + 2 }, () => {
     const el = document.createElement('div');
     el.className = 'korb-ding';

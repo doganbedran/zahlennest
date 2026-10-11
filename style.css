@@ -324,6 +324,8 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 .korb-ding .halo { fill: #f5c518; stroke: #b07800; stroke-width: 2; opacity: 0; transition: opacity 0.2s; }
 .korb-ding.leuchtet .halo { opacity: 1; }
 .korb-korb { position: absolute; pointer-events: none; z-index: 1; }
+/* Vorderseite des Korbs über den Dingen im Korb (z 2), unter dem gerade gezogenen Ding (z 5) */
+.korb-korb.korb-vorn { z-index: 3; }
 .korb-korb svg { width: 100%; height: 100%; display: block; overflow: visible; }
 /* Auftrag als Punktkarte (keine Ziffer): Ringe füllen sich bei jedem Ankommen */
 .korb-karte { position: absolute; background: var(--papier); border-radius: 18px; box-shadow: var(--schatten); z-index: 3; pointer-events: none; }
