@@ -29,7 +29,8 @@
   folgeAbspielen = async (folge) => { gesagt.push(...folge.map((q) => q.url.replace('audio/ansage-', '').replace('.wav', ''))); await warte(5); };
   zaehlenMitLeuchten = async (name, el) => { gesagt.push(name); el.forEach((e) => e.classList.add('leuchtet')); await warte(5); };
   Object.assign(WIEVIELE_ZEIT, { nochmalFragen: 150, weiterOhneTipp: 150, antwort: 150, unsicherWeiter: 100, daumen: 120,
-    auftragNochmal: 250, auftragEnde: 450, pause: 10 });
+    auftragNochmal: 250, vormachenPause: 10, pause: 10 });
+  const tippeInEcht = () => $('#wieviele .in-echt').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
   const zuletzt = () => gesagt[gesagt.length - 1];
 
   // 1. Kachel ✋ steht auf einem neuen Gerät im Regal und startet das Spiel
@@ -104,45 +105,61 @@
   pruefe(gesagt.slice(-2).includes(`wieviele-${n3}`) && !gesagt.slice(-2).some((g) => g.startsWith('zaehlen')), `Stufe 3 Antwort: ${gesagt.slice(-2)}`);
   await bis(() => wv.stufe === 3, 3000);
 
-  // 5. Echte Welt: Fingerbild mit n gestreckten Fingern, 👍 → Finger zählen, dann Ende mit 🏠/🔁
-  await bis(() => wv.stufe === 3 && !wv.gesperrt);
-  pruefe($('#btn-wieviele-daumen').hidden, '👍 sofort da (Kind tippt ihn weg, bevor es Finger zeigt)');
-  await bis(() => !$('#btn-wieviele-daumen').hidden);
+  // 5. Echte Welt: erst vormachen (großes Fingerbild, „Zeig mir … Finger!“, die gezeichneten Finger werden gezählt),
+  //    dann „Jetzt in echt!“: ruhiger Bildschirm, kleine Karte, 👐, nichts Greifbares; 👍 klein und erst nach kurzer
+  //    Zeit; Tippen aufs Bild lenkt einmal sanft um; nach 👍 „Zeig mal!“ und die App zählt mit
+  await bis(() => wv.inEcht && !wv.gesperrt);
   const m = wv.auftragMenge;
-  // Das Kind tippt aufs Fingerbild: nichts passiert (nur der Erwachsene bestätigt mit 👍)
-  karten()[0].click();
-  await warte(50);
-  pruefe(!wv.fertig, 'Tipp aufs Fingerbild beendet den Auftrag');
-  pruefe([1, 2, 3].includes(m) && zuletzt() === `finger-zeig-${m}`, `Auftrag: ${m} ${zuletzt()}`);
-  pruefe(karten()[0].querySelectorAll('.finger.zaehlt').length === m, 'Falsche Fingerzahl');
+  const vorm = gesagt.lastIndexOf(`finger-${m}`) - 1;
+  pruefe([1, 2, 3].includes(m) && vorm >= 0 && gesagt.slice(vorm).join() === `finger-zeig-${m},finger-${m},jetzt-in-echt,finger-zeig-${m}`,
+    `Vormachen / in echt: ${gesagt.slice(-4)}`);
+  pruefe($('#wieviele').classList.contains('ruhig') && !karten().length && $('#wieviele .in-echt-haende'), 'Kein ruhiger In-echt-Bildschirm');
+  pruefe($('#btn-wieviele-daumen').hidden, '👍 sofort da (Kind tippt ihn weg, bevor es Finger zeigt)');
+  const kleineKarte = $('#wieviele .in-echt-karte');
+  pruefe(kleineKarte.querySelectorAll('.finger.zaehlt').length === m, 'Falsche Fingerzahl auf der Karte');
   // Daumen (zuerst gezählt) steht links sichtbar neben der Handfläche heraus
-  const daumenR = karten()[0].querySelector('.finger.zaehlt').getBoundingClientRect();
-  const flaecheR = karten()[0].querySelector('svg > g > .hand:last-child').getBoundingClientRect();
-  const karteR = karten()[0].getBoundingClientRect();
-  pruefe(daumenR.left < flaecheR.left - 10 && daumenR.left > karteR.left && daumenR.width > 5, 'Daumen nicht sichtbar');
+  const daumenR = kleineKarte.querySelector('.finger.zaehlt').getBoundingClientRect();
+  const flaecheR = kleineKarte.querySelector('svg > g > .hand:last-child').getBoundingClientRect();
+  const karteR = kleineKarte.getBoundingClientRect();
+  pruefe(daumenR.left < flaecheR.left - 4 && daumenR.left > karteR.left && daumenR.width > 2, 'Daumen nicht sichtbar');
   [1, 2, 3].forEach((k) => pruefe(new DOMParser().parseFromString(fingerSvg(k), 'image/svg+xml').querySelectorAll('.zaehlt').length === k, `Fingerbild ${k}`));
+  // Das Kind tippt aufs Bild: einmal sanft umlenken (kein Ende, kein zweites Mal)
+  tippeInEcht();
+  await bis(() => zuletzt() === 'echt-umlenken');
+  pruefe(zuletzt() === 'echt-umlenken' && !wv.fertig, `Tippen aufs Bild lenkt nicht um: ${zuletzt()}`);
+  await bis(() => !wv.gesperrt);
+  tippeInEcht();
+  await warte(60);
+  pruefe(gesagt.filter((g) => g === 'echt-umlenken').length === 1, 'Umlenken mehr als einmal');
+  await bis(() => !$('#btn-wieviele-daumen').hidden);
   const db = $('#btn-wieviele-daumen').getBoundingClientRect();
-  pruefe(db.width >= 90 && db.bottom <= innerHeight - 30, `Daumen zu klein oder am Rand: breit ${Math.round(db.width)}, unten ${Math.round(db.bottom)} von ${innerHeight}`);
+  pruefe(db.width >= 56 && db.bottom <= innerHeight - 16 && db.right <= innerWidth - 12, `👍 schlecht erreichbar: breit ${Math.round(db.width)}, unten ${Math.round(db.bottom)} von ${innerHeight}`);
   $('#btn-wieviele-daumen').click();
   await bis(() => $('#wieviele .spiel-ende') && !$('#wieviele .spiel-ende').hidden);
-  pruefe(gesagt.includes(`finger-${m}`) && WIEVIELE_ENDE.includes(zuletzt()), `Ende: ${gesagt.slice(-3)}`);
+  const nach = gesagt.slice(gesagt.lastIndexOf('zeig-mal'));
+  pruefe(nach[1] === `finger-${m}` && WIEVIELE_ENDE.includes(zuletzt()), `Ende: ${gesagt.slice(-3)}`);
+  pruefe(kleineKarte.querySelectorAll('.finger.leuchtet').length === m, 'Finger auf der Karte leuchten beim Mitzählen nicht');
   pruefe($('#wieviele .spiel-ende') && !$('#wieviele .spiel-ende').hidden, 'Kein Spielende 🏠/🔁');
   pruefe(wv.punkte === 12, `Rundenpunkte: ${wv.punkte}`);
 
-  // 6. 🔁 beginnt von vorn; Auftrag ohne Tipp geht von selbst weiter
+  // 6. 🔁 beginnt von vorn (nicht mehr ruhig); ohne 👍: Auftrag einmal nochmal, dann wartet die App (keine Zeitgrenze)
   $('#wieviele .ende-nochmal').click();
-  pruefe(wv.stufe === 0 && wv.punkte === 0 && $('#wieviele .spiel-ende').hidden, '🔁 beginnt nicht neu');
+  pruefe(wv.stufe === 0 && wv.punkte === 0 && $('#wieviele .spiel-ende').hidden && !$('#wieviele').classList.contains('ruhig'), '🔁 beginnt nicht neu');
   await bis(() => !wv.gesperrt);
   wv.stufe = 3; wv.schritt = 0;
   const vorAuftrag = gesagt.length;
   wvSchritt();
-  await bis(() => $('#wieviele .spiel-ende') && !$('#wieviele .spiel-ende').hidden, 3000);
-  pruefe(!$('#wieviele .spiel-ende').hidden, 'Auftrag ohne Tipp endet nicht');
-  pruefe(gesagt.slice(vorAuftrag).filter((g) => g.startsWith('finger-zeig-')).length === 2, `Auftrag nicht einmal wiederholt: ${gesagt.slice(vorAuftrag)}`);
+  await warte(1500);
+  pruefe(wv.inEcht && !wv.fertig && $('#wieviele .spiel-ende').hidden, 'Auftrag endet ohne 👍 von selbst');
+  pruefe(gesagt.slice(vorAuftrag).filter((g) => g.startsWith('finger-zeig-')).length === 3, `Auftrag nicht einmal wiederholt: ${gesagt.slice(vorAuftrag)}`);
+  $('#btn-wieviele-daumen').click();
+  await bis(() => !$('#wieviele .spiel-ende').hidden, 3000);
   const ende1 = zuletzt();
   $('#wieviele .ende-nochmal').click();
   wv.stufe = 3; wv.schritt = 0; wv.auftragMenge = 0;
   wvSchritt();
+  await bis(() => !$('#btn-wieviele-daumen').hidden, 3000);
+  $('#btn-wieviele-daumen').click();
   await bis(() => !$('#wieviele .spiel-ende').hidden, 3000);
   pruefe(zuletzt() !== ende1 && WIEVIELE_ENDE.includes(zuletzt()), `Lob am Ende zweimal gleich: ${ende1}`);
 
@@ -243,7 +260,7 @@
   wvSchritt();
   await bis(() => !$('#btn-wieviele-daumen').hidden && !wv.gesperrt);
   const n1 = gesagt.length;
-  $('#btn-wieviele-daumen').click(); $('#btn-wieviele-daumen').click(); karten()[0].click();
+  $('#btn-wieviele-daumen').click(); $('#btn-wieviele-daumen').click(); tippeInEcht();
   await bis(() => !$('#wieviele .spiel-ende').hidden, 3000);
   pruefe(gesagt.slice(n1).filter((g) => g.startsWith('finger-')).length === 1, `Doppeltipp 👍: ${gesagt.slice(n1)}`);
   history.back();

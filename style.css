@@ -258,14 +258,15 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 .finger { transform-box: fill-box; transform-origin: bottom; transition: fill 0.2s, transform 0.2s; }
 .finger.leuchtet { fill: #f5c518; transform: scale(1.06); }
 
-.daumen-platz { display: flex; justify-content: center; min-height: 96px; margin-bottom: max(40px, 8vh); }
-.daumen-btn { width: 96px; height: 96px; border-radius: 50%; border: 4px solid #c7b08a; background: var(--papier);
-  box-shadow: var(--schatten); font-size: 3rem; animation: warten-puls 1.6s ease-in-out infinite; }
+/* 👍 für Erwachsene: klein und ruhig unten rechts (kein Pulsieren – sonst hält das Kind ihn für „weiter“) */
+.daumen-platz { position: fixed; right: max(20px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom));
+  z-index: 7; }
+.daumen-btn { width: 64px; height: 64px; border-radius: 50%; border: 3px solid #c7b08a; background: var(--papier);
+  box-shadow: var(--schatten); font-size: 2rem; opacity: 0.9; }
 
 /* Querformat auf dem Handy (niedrig): 👍 rechts unten statt unter der Karte, Symbol kleiner */
 @media (orientation: landscape) and (max-height: 600px) {
   .stufen-symbol { font-size: 2rem; margin: 0; }
-  .daumen-platz { position: fixed; right: max(32px, env(safe-area-inset-right)); bottom: 36px; margin: 0; min-height: 0; }
 }
 
 @keyframes aufploppen { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -273,7 +274,7 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 @keyframes wackeln { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
 @keyframes warten-puls { 50% { transform: scale(1.05); box-shadow: 0 0 0 10px var(--akzent-hell); } }
 @media (prefers-reduced-motion: reduce) {
-  .mengen-karte.pulsiert, .daumen-btn { animation: none; box-shadow: 0 0 0 6px var(--akzent-hell); }
+  .mengen-karte.pulsiert { animation: none; box-shadow: 0 0 0 6px var(--akzent-hell); }
 }
 
 /* ---------- Mehr oder weniger? ---------- */
@@ -312,7 +313,6 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 /* Schieben: die ganze Spielfläche ohne Browser-Gesten (kein Scrollen, kein Zurückwischen) */
 #korb, .korb-feld { touch-action: none; overscroll-behavior: none; }
 .korb-feld { flex: 1; position: relative; min-height: 0; }
-#korb .daumen-platz { position: fixed; left: 0; right: 0; bottom: max(40px, 8vh); margin: 0; min-height: 0; z-index: 7; }
 .korb-ding { position: absolute; left: 0; top: 0; padding: 0; border: none; background: none; touch-action: none; z-index: 2;
   transition: transform 0.28s ease-out, opacity 0.3s; }
 .korb-ding svg { width: 100%; height: 100%; display: block; overflow: visible; transition: transform 0.15s; }
@@ -357,3 +357,22 @@ body.laedt #home .spiele-raster { visibility: hidden; }
   100% { transform: translate(var(--zx), var(--zy)) scale(0.85); }
 }
 @media (prefers-reduced-motion: reduce) { .welt-klotz.leuchtet { animation-duration: 0.3s; } }
+
+/* ---------- Auftrag in der echten Welt (alle Spiele) ---------- */
+/* Ruhiger Bildschirm: Hintergrund etwas gedämpft, groß 👐, darüber nur eine kleine, flache Erinnerungskarte –
+   ohne Schatten und ohne Aufploppen, damit nichts greifbar aussieht */
+.screen.ruhig { background: #f3ebde; }
+.in-echt { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+  width: 100%; height: 100%; min-height: 40dvh; }
+#korb-feld .in-echt { position: absolute; inset: 0; }
+.in-echt-karte { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border: 3px solid #e3d8c6;
+  border-radius: 14px; background: transparent; }
+.in-echt-karte svg { height: min(76px, 11dvh); width: auto; display: block; }
+.in-echt-karte .karte-bild { font-size: min(3.2rem, 9dvh); line-height: 1; border-radius: 12px; padding: 2px 6px; }
+.in-echt-karte .karte-bild.leuchtet { box-shadow: 0 0 0 4px #f5c518; }
+.in-echt-karte .karte-punkt { fill: none; stroke: #4a3f35; stroke-width: 5; }
+.in-echt-karte .karte-punkt.leuchtet { fill: #f5c518; stroke: #b07800; }
+.in-echt-karte.wackelt { animation: wackeln 0.6s ease; }
+.in-echt-haende { font-size: min(8rem, 20dvh); line-height: 1; }
+.karte-becher { position: relative; display: inline-block; height: min(76px, 11dvh); aspect-ratio: 1; }
+.karte-becher svg { position: absolute; inset: 0; height: 100%; width: 100%; }

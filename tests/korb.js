@@ -19,7 +19,7 @@
   const gesagt = [];
   folgeAbspielen = async (folge) => { gesagt.push(...folge.map((q) => q.url.replace('audio/ansage-', '').replace('.wav', ''))); await warte(5); };
   zaehlenMitLeuchten = async (name, el) => { gesagt.push(name); el.forEach((e) => e.classList.add('leuchtet')); await warte(5); };
-  Object.assign(KORB_ZEIT, { versuch: 60000, fertigPause: 10, rundenPause: 50, loesungSchritt: 10, daumen: 120, auftragNochmal: 250, auftragEnde: 450 });
+  Object.assign(KORB_ZEIT, { versuch: 60000, fertigPause: 10, rundenPause: 50, loesungSchritt: 10, daumen: 120, auftragNochmal: 250, vormachenPause: 10 });
   const zuletzt = () => gesagt[gesagt.length - 1];
   const frei = () => bis(() => !kb.gesperrt && !kb.ziehen && !kb.sprech.offen);
 
@@ -179,11 +179,17 @@
     await bis(() => kb.gesperrt === false || kb.auftrag, 3000);
   }
   await bis(() => !kb.gesperrt);
-  pruefe(/^korb-welt-[23]$/.test(zuletzt()) && $('#btn-korb-daumen').hidden, `Auftrag: ${zuletzt()}`);
+  // Vormachen (Bausteine fliegen beim Zählen in den Becher), dann „Jetzt in echt!“ + Auftrag, ruhiger Bildschirm
+  const w12 = kb.weltMenge;
+  pruefe(gesagt.slice(-4).join() === `korb-welt-${w12},korb-welt-${w12}-fertig,jetzt-in-echt,korb-welt-${w12}` && $('#btn-korb-daumen').hidden,
+    `Auftrag: ${gesagt.slice(-4)}`);
+  pruefe($('#korb').classList.contains('ruhig') && document.querySelectorAll('#korb .in-echt-karte .karte-punkt').length === w12
+    && !document.querySelector('#korb .welt-klotz, #korb .korb-ding'), 'Kein ruhiger In-echt-Bildschirm');
   await bis(() => !$('#btn-korb-daumen').hidden);
   $('#btn-korb-daumen').click(); $('#btn-korb-daumen').click();
   await bis(() => $('#korb .spiel-ende') && !$('#korb .spiel-ende').hidden);
-  pruefe(gesagt.filter((g) => /^korb-welt-\d-fertig$/.test(g)).length === 1 && zuletzt() === 'ende-korb', `Ende: ${gesagt.slice(-3)}`);
+  pruefe(gesagt.slice(-3).join() === `korb-zeig-jeden,korb-welt-${w12}-fertig,ende-korb`, `Ende: ${gesagt.slice(-3)}`);
+  pruefe(document.querySelectorAll('#korb .in-echt-karte .karte-punkt.leuchtet').length === w12, 'Punkte auf der Karte leuchten beim Mitzählen nicht');
   pruefe(kb.runde === 4, `Runden: ${kb.runde}`);
 
   stand.textContent = 'Abschnitt 13';

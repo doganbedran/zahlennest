@@ -15,7 +15,7 @@
   const gesagt = [];
   folgeAbspielen = async (folge) => { gesagt.push(...folge.map((q) => q.url.replace('audio/ansage-', '').replace('.wav', ''))); await warte(5); };
   zaehlenMitLeuchten = async (name, el) => { gesagt.push(name); el.forEach((e) => e.classList.add('leuchtet')); await warte(5); };
-  Object.assign(MEHR_ZEIT, { nochmalFragen: 5000, pause: 10, paarSchritt: 20, zeigen: 50, daumen: 120, auftragNochmal: 250, auftragEnde: 450 });
+  Object.assign(MEHR_ZEIT, { nochmalFragen: 5000, pause: 10, paarSchritt: 20, zeigen: 50, daumen: 120, auftragNochmal: 250 });
   const zuletzt = () => gesagt[gesagt.length - 1];
   const teller = () => mwTeller();
   const frei = async () => { await bis(() => !mw.gesperrt); await warte(420); };
@@ -113,18 +113,24 @@
     await bis(() => mw.gesperrt === false || mw.auftrag, 3000);
   }
   await bis(() => !mw.gesperrt);
-  pruefe(['welt-nase', 'welt-mund'].includes(zuletzt()) && gesagt.slice(-2)[0].match(/^welt-(augen|haende)$/), `Auftrag: ${gesagt.slice(-2)}`);
+  // „Jetzt in echt!“, dann der Auftrag in zwei Teilen; ruhiger Bildschirm mit kleiner Karte und 👐, nichts Greifbares
+  pruefe(gesagt.slice(-3)[0] === 'jetzt-in-echt' && ['welt-nase', 'welt-mund'].includes(zuletzt()) && gesagt.slice(-2)[0].match(/^welt-(augen|haende)$/), `Auftrag: ${gesagt.slice(-3)}`);
   pruefe($('#btn-mehr-daumen').hidden, '👍 sofort da');
-  pruefe(document.querySelectorAll('#mehr .welt-bild').length === 2, 'Bilder für den Auftrag fehlen');
+  pruefe($('#mehr').classList.contains('ruhig') && document.querySelectorAll('#mehr .in-echt-karte .karte-bild').length === 2
+    && $('#mehr .in-echt-haende') && !teller().length, 'Kein ruhiger In-echt-Bildschirm');
+  // Tippen aufs Bild: einmal sanft umlenken
+  $('#mehr .in-echt').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+  await bis(() => zuletzt() === 'echt-umlenken');
+  pruefe(zuletzt() === 'echt-umlenken' && !mw.fertig, 'Tippen aufs Bild lenkt nicht um');
   await bis(() => !$('#btn-mehr-daumen').hidden);
   const db = $('#btn-mehr-daumen').getBoundingClientRect();
-  pruefe(db.width >= 90 && db.bottom <= innerHeight - 30 && db.right <= innerWidth - 20, `👍 nicht gut erreichbar: unten ${Math.round(db.bottom)} von ${innerHeight}`);
+  pruefe(db.width >= 56 && db.bottom <= innerHeight - 16 && db.right <= innerWidth - 12, `👍 nicht gut erreichbar: unten ${Math.round(db.bottom)} von ${innerHeight}`);
   $('#btn-mehr-daumen').click(); $('#btn-mehr-daumen').click();
   await bis(() => $('#mehr .spiel-ende') && !$('#mehr .spiel-ende').hidden);
-  pruefe(gesagt.filter((g) => g.endsWith('-fertig')).length === 1 && MEHR_ENDE.includes(zuletzt()), `Ende: ${gesagt.slice(-3)}`);
+  pruefe(gesagt.filter((g) => g.endsWith('-fertig')).length === 1 && gesagt.slice(-3)[0] === 'zeig-mal' && MEHR_ENDE.includes(zuletzt()), `Ende: ${gesagt.slice(-3)}`);
   pruefe(mw.runde === 8, `Runden: ${mw.runde}`);
 
-  // 8. Auftrag ohne Tipp: einmal wiederholt, dann von selbst weiter; Lob am Ende wechselt
+  // 8. Auftrag ohne Tipp: einmal wiederholt, dann wartet die App (keine Zeitgrenze); Lob am Ende wechselt
   const ende1 = zuletzt();
   $('#mehr .ende-nochmal').click();
   pruefe(mw.runde === 0 && $('#mehr .spiel-ende').hidden, '🔁 beginnt nicht neu');
@@ -132,8 +138,11 @@
   const vorAuftrag = gesagt.length;
   mw.runde = 8;
   mehrAuftrag();
-  await bis(() => !$('#mehr .spiel-ende').hidden, 3000);
+  await warte(1500);
+  pruefe(mw.inEcht && !mw.fertig && (!$('#mehr .spiel-ende') || $('#mehr .spiel-ende').hidden), 'Auftrag endet ohne 👍 von selbst');
   pruefe(gesagt.slice(vorAuftrag).filter((g) => /^welt-(augen|haende)$/.test(g)).length === 2, `Auftrag nicht einmal wiederholt: ${gesagt.slice(vorAuftrag)}`);
+  $('#btn-mehr-daumen').click();
+  await bis(() => !$('#mehr .spiel-ende').hidden, 3000);
   pruefe(zuletzt() !== ende1, 'Lob am Ende zweimal gleich');
 
   // 9. „weniger“ einschalten (je Kind): 4× mehr, dann angesagter Wechsel, 4× weniger mit großen Unterschieden

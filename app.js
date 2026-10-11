@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 8;
+const APP_VERSION = 9;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -378,6 +378,7 @@ function spielEnde(id, nochmal) {
 }
 
 function spielEndeWeg(id) {
+  $(`#${id}`).classList.remove('ruhig');
   const ende = $(`#${id}`).querySelector('.spiel-ende');
   if (ende) ende.hidden = true;
 }
@@ -477,28 +478,60 @@ function spielBausteine(id, z) {
   };
 }
 
-// Auftrag in der echten Welt (alle Spiele), nachdem er gesagt wurde: 👍 (nur für Erwachsene) erscheint nach kurzer
-// Zeit zum Zeigen; nach einer Weile ohne Tipp kommt der Auftrag einmal nochmal, viel später geht es freundlich von
-// selbst weiter. Es wird nichts geprüft und nicht gedrängt. zeit: { daumen, auftragNochmal, auftragEnde } in ms.
-function auftragAbwarten({ z, nr, aktuell, knopf, sagen, erledigt, zeit }) {
-  const beginn = Date.now();
+// ---------- Auftrag in der echten Welt (alle Spiele) ----------
+// Ablauf (Team + User): 1. das Spiel macht es einmal vor; 2. „Jetzt in echt!“ – das Spielfeld leert sich, groß 👐,
+// darüber nur eine kleine, flache Erinnerungskarte (nichts sieht greifbar aus; Tippen darauf lenkt einmal sanft um:
+// „Mach es in echt, mit deinen Händen!“); 3. der Erwachsene tippt 👍 (klein, unten rechts), dann zeigt das Kind auf
+// die echten Dinge, und die App zählt mit (die Karte leuchtet). Keine Zeitgrenze: nach einer Weile kommt der Auftrag
+// einmal nochmal, dann wartet die App einfach. z.inEcht = in dieser Phase; z.echtSagen = Auftrag nochmal (🔊).
+async function inEcht({ z, nr, aktuell, ansage, buehne, knopf, karteHtml, sagen, zeit }) {
+  z.inEcht = true;
+  z.echtSagen = sagen;
+  z.umgelenkt = false;
+  buehne.closest('.screen').classList.add('ruhig');
+  buehne.innerHTML = `<div class="in-echt"><div class="in-echt-karte">${karteHtml}</div>`
+    + '<div class="in-echt-haende" aria-hidden="true">👐</div></div>';
+  const karte = buehne.querySelector('.in-echt-karte');
+  buehne.querySelector('.in-echt').addEventListener('pointerdown', async () => {
+    if (!aktuell(nr) || z.gesperrt || z.fertig || z.umgelenkt) return;
+    z.umgelenkt = true;
+    z.gesperrt = true;
+    animieren(karte, 'wackelt');
+    if ((await ansage(nr, 'echt-umlenken')) && !z.fertig) z.gesperrt = false;
+  });
+  if (!(await ansage(nr, 'jetzt-in-echt'))) return;
+  if (!(await sagen(nr))) return;   // „Jetzt in echt! … Leg drei Bausteine in einen Becher!“
+  if (z.fertig) return;
   z.gesperrt = false;
-  const nochmal = async () => {
-    if (!aktuell(nr) || z.fertig) return;
-    if (z.gesperrt) { z.timer = setTimeout(nochmal, 1000); return; }   // 🔊 spricht gerade
-    if (!(await sagen(nr)) || z.fertig) return;
-    const ende = () => {
-      if (!aktuell(nr) || z.fertig) return;
-      if (z.gesperrt) { z.timer = setTimeout(ende, 1000); return; }
-      erledigt(nr);
-    };
-    z.timer = setTimeout(ende, Math.max(0, zeit.auftragEnde - (Date.now() - beginn)));
-  };
   z.timer = setTimeout(() => {
-    if (!aktuell(nr)) return;
+    if (!aktuell(nr) || z.fertig) return;
     knopf.hidden = false;
+    const nochmal = async () => {
+      if (!aktuell(nr) || z.fertig) return;
+      if (z.gesperrt) { z.timer = setTimeout(nochmal, 1000); return; }   // spricht gerade
+      z.gesperrt = true;
+      if ((await sagen(nr)) && !z.fertig) z.gesperrt = false;
+    };
     z.timer = setTimeout(nochmal, zeit.auftragNochmal - zeit.daumen);
   }, zeit.daumen);
+}
+
+// Nach 👍 (auch während einer Ansage): fertig, Knopf weg; gibt die Karte zurück (zum Mitzählen)
+function inEchtBestaetigt(z, knopf) {
+  if (z.fertig || !z.inEcht) return null;
+  z.fertig = true;
+  z.gesperrt = true;
+  clearTimeout(z.timer);
+  knopf.hidden = true;
+  return $(`#${knopf.closest('.screen').id} .in-echt-karte`);
+}
+
+// 🔊 in der Phase „in echt“: nur den Auftrag nochmal sagen (👍 bleibt, die Zeiten laufen weiter)
+function inEchtNochmal(z) {
+  if (z.fertig || z.gesperrt) return;
+  const nr = z.nummer;
+  z.gesperrt = true;
+  z.echtSagen(nr).then((ok) => { if (ok && !z.fertig) z.gesperrt = false; });
 }
 
 // ---------- Wie viele? Drei-Stufen-Lektion mit den Mengen 1–3 ----------
@@ -510,7 +543,7 @@ const WIEVIELE_STUFEN = [3, 6, 3];
 const WIEVIELE_SYMBOL = ['👀', '👂', '🗣️'];
 // Wartezeiten in ms (Tests verkürzen sie)
 const WIEVIELE_ZEIT = { nochmalFragen: 8000, weiterOhneTipp: 8000, antwort: 5000, unsicherWeiter: 2000, daumen: 2500,
-  auftragNochmal: 12000, auftragEnde: 30000, pause: 900 };
+  auftragNochmal: 12000, vormachenPause: 900, pause: 900 };
 const WIEVIELE_ENDE = ['ende-hingeschaut', 'ende-angeschaut', 'ende-finger'];
 // wv.stufe zählt ab 0: 0 = Stufe 1 (benennen), 1 = Stufe 2 (wiedererkennen), 2 = Stufe 3 (sag es), 3 = Auftrag echte Welt
 const wv = { stufe: 0, schritt: 0, punkte: 0, auftraege: [], ziel: 0, versuche: 0, unsicher: new Set(), gesperrt: true,
@@ -731,7 +764,7 @@ function wvWeiter(nr) {
 }
 
 function wvSchritt() {
-  $('#wieviele-symbol').textContent = WIEVIELE_SYMBOL[wv.stufe] || '🙌';
+  $('#wieviele-symbol').textContent = WIEVIELE_SYMBOL[wv.stufe] || '';   // in echt: kein Zeichen (dort steht 👐)
   [wvStufe1, wvStufe2, wvStufe3, wvAuftrag][wv.stufe]();
 }
 
@@ -748,28 +781,28 @@ async function wvNaechsteStufe() {
   animieren($('#wieviele-symbol'), 'huepft');
 }
 
-// Echte Welt: „Zeig mir zwei Finger!“ – der Erwachsene tippt 👍 (oder aufs Bild), dann zählt die App die Finger mit.
-// Es wird nichts geprüft und nicht gedrängt: 👍 erscheint erst nach kurzer Zeit (Zeit zum Fingerzeigen), nach einer
-// Weile ohne Tipp kommt der Auftrag einmal nochmal, erst viel später geht es freundlich von selbst weiter.
+// Echte Welt: erst vormachen (großes Fingerbild, „Zeig mir zwei Finger!“, die gezeichneten Finger werden gezählt),
+// dann „Jetzt in echt!“ – das Kind zeigt die Finger an der eigenen Hand; nach 👍 „Zeig mal!“ und die App zählt mit
 async function wvAuftrag() {
   wievieleStoppen();
   const nr = wv.nummer;
   wv.fertig = false;
   $('#btn-wieviele-daumen').hidden = true;
   const n = wv.auftragMenge || (wv.auftragMenge = zufall([2, 3, 2, 3, 1]));
-  wvEinzeln(n, fingerSvg(n));
+  const karte = wvEinzeln(n, fingerSvg(n));
   if (!(await wvAnsage(nr, `finger-zeig-${n}`))) return;
-  auftragAbwarten({ z: wv, nr, aktuell: wvAktuell, knopf: $('#btn-wieviele-daumen'),
-    sagen: (nr2) => wvAnsage(nr2, `finger-zeig-${n}`), erledigt: wvAuftragErledigt, zeit: WIEVIELE_ZEIT });
+  if (!(await wvZaehlen(nr, `finger-${n}`, [...karte.querySelectorAll('.finger.zaehlt')]))) return;
+  await warten(WIEVIELE_ZEIT.vormachenPause);
+  const box = $('#wieviele-karten');
+  box.className = 'mengen-karten';
+  inEcht({ z: wv, nr, aktuell: wvAktuell, ansage: wvAnsage, buehne: box, knopf: $('#btn-wieviele-daumen'),
+    karteHtml: fingerSvg(n), sagen: (nr2) => wvAnsage(nr2, `finger-zeig-${n}`), zeit: WIEVIELE_ZEIT });
 }
 
 async function wvAuftragErledigt(nr) {
-  if (wv.fertig) return;
-  wv.fertig = true;
-  wv.gesperrt = true;
-  clearTimeout(wv.timer);
-  $('#btn-wieviele-daumen').hidden = true;
-  const karte = $('#wieviele-karten .mengen-karte');
+  const karte = inEchtBestaetigt(wv, $('#btn-wieviele-daumen'));
+  if (!karte) return;
+  if (!(await wvAnsage(nr, 'zeig-mal'))) return;
   if (!(await wvZaehlen(nr, `finger-${wv.auftragMenge}`, [...karte.querySelectorAll('.finger.zaehlt')]))) return;
   glockenspiel();
   await warten(400);
@@ -779,11 +812,11 @@ async function wvAuftragErledigt(nr) {
   spielEnde('wieviele', wievieleNeu);
 }
 
-$('#btn-wieviele-daumen').addEventListener('click', () => { audio(); if (!wv.gesperrt && wv.stufe === 3) wvAuftragErledigt(wv.nummer); });
+$('#btn-wieviele-daumen').addEventListener('click', () => { audio(); if (wv.inEcht) wvAuftragErledigt(wv.nummer); });
 
 function wievieleNeu() {
   wievieleStoppen();
-  Object.assign(wv, { stufe: 0, schritt: 0, punkte: 0, auftraege: [], unsicher: new Set(), auftragMenge: 0, fertig: false });
+  Object.assign(wv, { stufe: 0, schritt: 0, punkte: 0, auftraege: [], unsicher: new Set(), auftragMenge: 0, fertig: false, inEcht: false });
   $('#btn-wieviele-daumen').hidden = true;
   wvRundenZeichnen();
   wvSchritt();
@@ -803,6 +836,7 @@ $('#btn-wieviele-laut').addEventListener('click', () => {
   const ende = $('#wieviele .spiel-ende');
   if ((ende && !ende.hidden) || wv.fertig || wv.gesperrt) return;
   audio();
+  if (wv.inEcht) { inEchtNochmal(wv); return; }
   if (wv.stufe === 1) {
     clearTimeout(wv.timer);
     wv.nummer++;
@@ -819,8 +853,7 @@ $('#btn-wieviele-laut').addEventListener('click', () => {
 // dann wieder die großen Unterschiede). Kein „falsch“: 1. Daneben = die Dinge stellen sich paarweise auf (Eins-zu-eins),
 // 2. = die App zählt beide Teller, 3. = Lösung zeigen und weiter. Der Teller mit weniger wird nie blass oder traurig.
 const MEHR_PAARE = { gross: [[1, 4], [1, 5], [2, 5], [1, 3]], klein: [[1, 2], [2, 4], [3, 5], [2, 5]] };
-const MEHR_ZEIT = { nochmalFragen: 8000, pause: 900, paarSchritt: 450, zeigen: 3000, daumen: 2500, auftragNochmal: 12000,
-  auftragEnde: 30000 };
+const MEHR_ZEIT = { nochmalFragen: 8000, pause: 900, paarSchritt: 450, zeigen: 3000, daumen: 2500, auftragNochmal: 12000 };
 const MEHR_ENDE = ['ende-verglichen', 'ende-hingeschaut'];
 // Auftrag in zwei Teilen mit Zeit zum Zeigen dazwischen: [Bild, Ansage] – das gerade gemeinte Bild leuchtet
 const MEHR_WELT = { augen: [['👀', 'welt-augen'], ['👃', 'welt-nase']], haende: [['🙌', 'welt-haende'], ['👄', 'welt-mund']] };
@@ -1021,8 +1054,8 @@ function mehrWeiter(nr) {
   mehrAuftrag();
 }
 
-// Echte Welt am eigenen Körper: „Zeig mir deine Augen! Und jetzt deine Nase!“ → „Zwei Augen und eine Nase …“
-// 👍 nur für Erwachsene, erscheint nach kurzer Zeit; nach einer Weile einmal nochmal, viel später von selbst weiter.
+// Echte Welt am eigenen Körper: „Jetzt in echt!“ – „Zeig mir deine Augen!“ … „Und jetzt deine Nase!“ (das gemeinte
+// Bild der kleinen Karte leuchtet); nach 👍 „Zeig mal!“ – „Zwei Augen und eine Nase. Da sind mehr Augen!“
 async function mehrAuftrag() {
   mehrStoppen();
   const nr = mw.nummer;
@@ -1030,21 +1063,14 @@ async function mehrAuftrag() {
   mw.fertig = false;
   $('#btn-mehr-daumen').hidden = true;
   mw.welt = mw.welt || zufall(Object.keys(MEHR_WELT));
-  const box = $('#mehr-teller');
-  box.replaceChildren(...MEHR_WELT[mw.welt].map(([bild]) => {
-    const el = document.createElement('div');
-    el.className = 'welt-bild kommt';
-    el.textContent = bild;
-    return el;
-  }));
-  if (!(await mehrAuftragSagen(nr))) return;
-  auftragAbwarten({ z: mw, nr, aktuell: mwAktuell, knopf: $('#btn-mehr-daumen'),
-    sagen: mehrAuftragSagen, erledigt: mehrAuftragErledigt, zeit: MEHR_ZEIT });
+  inEcht({ z: mw, nr, aktuell: mwAktuell, ansage: mwAnsage, buehne: $('#mehr-teller'), knopf: $('#btn-mehr-daumen'),
+    karteHtml: MEHR_WELT[mw.welt].map(([bild]) => `<span class="karte-bild">${bild}</span>`).join(''),
+    sagen: mehrAuftragSagen, zeit: MEHR_ZEIT });
 }
 
 // „Zeig mir deine Augen!“ – Zeit zum Zeigen – „Und jetzt deine Nase!“; das gemeinte Bild leuchtet
 async function mehrAuftragSagen(nr) {
-  const bilder = [...document.querySelectorAll('#mehr-teller .welt-bild')];
+  const bilder = [...document.querySelectorAll('#mehr-teller .karte-bild')];
   for (const [i, [, ansageName]] of MEHR_WELT[mw.welt].entries()) {
     bilder.forEach((b, k) => b.classList.toggle('leuchtet', k === i));
     if (!(await mwAnsage(nr, ansageName))) return false;
@@ -1055,12 +1081,10 @@ async function mehrAuftragSagen(nr) {
 }
 
 async function mehrAuftragErledigt(nr) {
-  if (mw.fertig) return;
-  mw.fertig = true;
-  mw.gesperrt = true;
-  clearTimeout(mw.timer);
-  $('#btn-mehr-daumen').hidden = true;
-  const erstes = $('#mehr-teller .welt-bild');
+  const karte = inEchtBestaetigt(mw, $('#btn-mehr-daumen'));
+  if (!karte) return;
+  if (!(await mwAnsage(nr, 'zeig-mal'))) return;
+  const erstes = karte.querySelector('.karte-bild');
   if (erstes) erstes.classList.add('leuchtet');
   if (!(await mwAnsage(nr, `welt-${mw.welt}-fertig`))) return;
   glockenspiel();
@@ -1071,11 +1095,11 @@ async function mehrAuftragErledigt(nr) {
   spielEnde('mehr', mehrNeu);
 }
 
-$('#btn-mehr-daumen').addEventListener('click', () => { audio(); if (!mw.gesperrt && mw.auftrag) mehrAuftragErledigt(mw.nummer); });
+$('#btn-mehr-daumen').addEventListener('click', () => { audio(); if (mw.inEcht) mehrAuftragErledigt(mw.nummer); });
 
 function mehrNeu() {
   mehrStoppen();
-  Object.assign(mw, { runde: 0, runden: mehrRundenPlanen(), fertig: false, auftrag: false, welt: null, mitHilfe: 0 });
+  Object.assign(mw, { runde: 0, runden: mehrRundenPlanen(), fertig: false, auftrag: false, welt: null, mitHilfe: 0, inEcht: false });
   $('#btn-mehr-daumen').hidden = true;
   mwRundenZeichnen();
   mehrNeueRunde();
@@ -1094,12 +1118,7 @@ $('#btn-mehr-laut').addEventListener('click', () => {
   const ende = $('#mehr .spiel-ende');
   if ((ende && !ende.hidden) || mw.fertig || mw.gesperrt) return;
   audio();
-  if (mw.auftrag) {
-    // Auftrag nur nochmal sagen: 👍 bleibt stehen, die Zeiten des Auftrags laufen weiter
-    mw.gesperrt = true;
-    mehrAuftragSagen(mw.nummer).then((ok) => { if (ok) mw.gesperrt = false; });
-    return;
-  }
+  if (mw.inEcht) { inEchtNochmal(mw); return; }
   clearTimeout(mw.timer);
   mw.nummer++;
   mehrFragen(mw.nummer);
@@ -1115,7 +1134,7 @@ $('#btn-mehr-laut').addEventListener('click', () => {
 // Eltern-Schalter je Kind: Mengen bis 5 (sonst 1–3), Antippen statt Schieben.
 const KORB_RUNDEN = 4;
 const KORB_ZEIT = { versuch: 12000, fertigPause: 600, rundenPause: 900, loesungSchritt: 700, daumen: 2500,
-  auftragNochmal: 12000, auftragEnde: 30000 };
+  auftragNochmal: 12000, vormachenPause: 900 };
 // Echte Welt: eigene Zeichnungen (Emoji 🧱 wäre ein Ziegelstein, 🥤 ein Becher mit Strohhalm): [Baustein, Becher]
 const KORB_WELT = [
   '<svg viewBox="0 0 100 100" aria-hidden="true"><rect x="14" y="40" width="72" height="42" rx="6" fill="#d23c2c" stroke="#4a3f35" stroke-width="4"/>'
@@ -1204,9 +1223,14 @@ function dingSetzen(d, x, y) {
   d.el.style.transform = `translate(${d.x - S / 2}px, ${d.y - S / 2}px)`;
 }
 
-const korbSvg = '<svg viewBox="0 0 300 200" aria-hidden="true"><path d="M70 70 Q150 -40 230 70" fill="none" stroke="#a8743a" stroke-width="10" stroke-linecap="round"/>'
-  + '<rect x="12" y="44" width="276" height="148" rx="34" fill="#f3e3c7" stroke="#a8743a" stroke-width="10"/>'
-  + '<path d="M22 172 Q150 196 278 172" fill="none" stroke="#c99a5c" stroke-width="6" stroke-linecap="round"/></svg>';
+// Korb wie 🧺: oben breiter als unten, geflochten (helle Bänder quer, dunkle Ruten senkrecht), großer Henkel über
+// die ganze Breite (ein kleiner Griff oben sah aus wie ein Koffer)
+const korbSvg = '<svg viewBox="0 0 300 200" aria-hidden="true">'
+  + '<path d="M34 66 Q150 -62 266 66" fill="none" stroke="#9a6430" stroke-width="12" stroke-linecap="round"/>'
+  + '<path d="M16 62 L284 62 L254 190 Q150 202 46 190 Z" fill="#c98f4e" stroke="#7a4b20" stroke-width="5" stroke-linejoin="round"/>'
+  + [96, 128, 160].map((y) => `<path d="M${16 + (y - 62) * 0.23} ${y} Q150 ${y + 8} ${284 - (y - 62) * 0.23} ${y}" fill="none" stroke="#e8bd84" stroke-width="12"/>`).join('')
+  + [60, 100, 150, 200, 240].map((x) => `<path d="M${x} 64 L${150 + (x - 150) * 0.78} 194" stroke="#8a5526" stroke-width="4"/>`).join('')
+  + '<rect x="8" y="50" width="284" height="22" rx="11" fill="#a8743a" stroke="#7a4b20" stroke-width="4"/></svg>';
 
 function korbKarteSvg(n) {
   return `<svg viewBox="0 0 100 100" aria-hidden="true">${MEHR_STELLEN[n].map(([dx, dy]) => `<circle class="karte-punkt" cx="${
@@ -1476,29 +1500,20 @@ async function korbLoesung(nr) {
 
 // ----- Echte Welt: „Leg zwei Bausteine in einen Becher!“ – 👍 für Erwachsene, dann zählt die App mit -----
 
+// Echte Welt: erst vormachen („Leg drei Bausteine in einen Becher!“, die gezeichneten fliegen beim Zählen hinein),
+// dann „Jetzt in echt!“ + Auftrag mit kleiner Karte (Punkte + Becher); nach 👍 „Zeig auf jeden Baustein!“ und die App zählt mit
 async function korbAuftrag() {
   korbStoppen();
   const nr = kb.nummer;
   kb.auftrag = true;
   kb.fertig = false;
   $('#btn-korb-daumen').hidden = true;
-  kb.weltMenge = kb.weltMenge || zufall([2, 3]);
+  const n = kb.weltMenge || (kb.weltMenge = zufall([2, 3]));
   const feld = $('#korb-feld');
-  // So viele kleine Bausteine, wie gesagt wurden, daneben ein großer Becher; nach 👍 fliegt bei jeder Zahl einer hinein
   feld.innerHTML = `<div class="korb-welt"><div class="welt-kloetze">${
-    Array.from({ length: kb.weltMenge }, () => `<div class="welt-klotz kommt">${KORB_WELT[0]}</div>`).join('')}</div>`
+    Array.from({ length: n }, () => `<div class="welt-klotz kommt">${KORB_WELT[0]}</div>`).join('')}</div>`
     + `<div class="welt-becher kommt"><div class="becher-hinten">${KORB_WELT[1].hinten}</div><div class="becher-vorn">${KORB_WELT[1].vorn}</div></div></div>`;
-  if (!(await kbAnsage(nr, `korb-welt-${kb.weltMenge}`))) return;
-  auftragAbwarten({ z: kb, nr, aktuell: kbAktuell, knopf: $('#btn-korb-daumen'),
-    sagen: (nr2) => kbAnsage(nr2, `korb-welt-${kb.weltMenge}`), erledigt: korbAuftragErledigt, zeit: KORB_ZEIT });
-}
-
-async function korbAuftragErledigt(nr) {
-  if (kb.fertig) return;
-  kb.fertig = true;
-  kb.gesperrt = true;
-  clearTimeout(kb.timer);
-  $('#btn-korb-daumen').hidden = true;
+  if (!(await kbAnsage(nr, `korb-welt-${n}`))) return;
   // Ziel jedes Bausteins: in die Öffnung des Bechers, übereinander gestapelt – die obere Hälfte schaut heraus
   // (der Becher liegt davor), so sieht das Kind, dass sie drin sind
   const becher = $('#korb-feld .welt-becher').getBoundingClientRect();
@@ -1509,18 +1524,29 @@ async function korbAuftragErledigt(nr) {
     k.style.setProperty('--zx', `${becher.left + becher.width / 2 - (r.left + r.width / 2)}px`);
     k.style.setProperty('--zy', `${becher.top + becher.height * 0.27 - r.height * 0.3 * i - (r.top + r.height / 2)}px`);
   });
-  if (!(await kbZaehlen(nr, `korb-welt-${kb.weltMenge}-fertig`, kloetze))) return;
+  if (!(await kbZaehlen(nr, `korb-welt-${n}-fertig`, kloetze))) return;
+  await warten(KORB_ZEIT.vormachenPause);
+  const becherKlein = `<span class="karte-becher">${KORB_WELT[1].hinten.replace('<svg', '<svg class="becher-h"')}${KORB_WELT[1].vorn}</span>`;
+  inEcht({ z: kb, nr, aktuell: kbAktuell, ansage: kbAnsage, buehne: feld, knopf: $('#btn-korb-daumen'),
+    karteHtml: korbKarteSvg(n) + becherKlein, sagen: (nr2) => kbAnsage(nr2, `korb-welt-${n}`), zeit: KORB_ZEIT });
+}
+
+async function korbAuftragErledigt(nr) {
+  const karte = inEchtBestaetigt(kb, $('#btn-korb-daumen'));
+  if (!karte) return;
+  if (!(await kbAnsage(nr, 'korb-zeig-jeden'))) return;
+  if (!(await kbZaehlen(nr, `korb-welt-${kb.weltMenge}-fertig`, [...karte.querySelectorAll('.karte-punkt')]))) return;
   glockenspiel();
   await warten(400);
   if (!(await kbAnsage(nr, 'ende-korb'))) return;
   spielEnde('korb', korbNeu);
 }
 
-$('#btn-korb-daumen').addEventListener('click', () => { audio(); if (!kb.gesperrt && kb.auftrag) korbAuftragErledigt(kb.nummer); });
+$('#btn-korb-daumen').addEventListener('click', () => { audio(); if (kb.inEcht) korbAuftragErledigt(kb.nummer); });
 
 function korbNeu() {
   korbStoppen();
-  Object.assign(kb, { runde: 0, runden: korbRundenPlanen(), auftrag: false, fertig: false, weltMenge: 0, dinge: [], imKorb: [] });
+  Object.assign(kb, { runde: 0, runden: korbRundenPlanen(), auftrag: false, fertig: false, weltMenge: 0, dinge: [], imKorb: [], inEcht: false });
   $('#btn-korb-daumen').hidden = true;
   kbRundenZeichnen();
   korbNeueRunde();
@@ -1540,12 +1566,8 @@ $('#btn-korb-laut').addEventListener('click', () => {
   if ((ende && !ende.hidden) || kb.fertig || kb.gesperrt || kb.ziehen || kb.sprech.offen) return;
   audio();
   const nr = kb.nummer;
-  const name = kb.auftrag ? `korb-welt-${kb.weltMenge}` : `korb-leg-${kbRunde().n}-${kbRunde().ding}`;
-  if (kb.auftrag) {
-    kb.gesperrt = true;
-    kbAnsage(nr, name).then((ok) => { if (ok && !kb.fertig) kb.gesperrt = false; });
-    return;
-  }
+  if (kb.inEcht) { inEchtNochmal(kb); return; }
+  const name = `korb-leg-${kbRunde().n}-${kbRunde().ding}`;
   // In der Runde: Auftrag nochmal, Schieben bleibt möglich, die Hilfe-Uhr läuft weiter
   animieren($('#korb-feld .korb-karte'), 'pulsiert');
   kbAnsage(nr, name);

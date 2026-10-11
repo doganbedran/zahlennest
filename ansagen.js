@@ -32,6 +32,11 @@ const ANSAGEN = {
   'weniger-wo': ['Wo sind weniger?', 'Mehr oder weniger?'],
   'weniger-hier': ['Hier sind weniger!', 'Mehr oder weniger?'],
   'schau-mal': ['Schau mal!', 'Alle Spiele'],
+  // Auftrag in der echten Welt (alle Spiele): Wechsel weg vom Bildschirm, sanftes Umlenken, Bestätigen am echten Ding
+  'jetzt-in-echt': ['Jetzt in echt!', 'Alle Spiele'],
+  'echt-umlenken': ['Mach es in echt, mit deinen Händen!', 'Alle Spiele'],
+  'zeig-mal': ['Zeig mal!', 'Alle Spiele'],
+  'korb-zeig-jeden': ['Zeig auf jeden Baustein!', 'In den Korb'],
   'welt-augen': ['Zeig mir deine Augen!', 'Mehr oder weniger?'],
   'welt-nase': ['Und jetzt deine Nase!', 'Mehr oder weniger?'],
   'welt-augen-fertig': ['Zwei Augen und eine Nase. Da sind mehr Augen!', 'Mehr oder weniger?'],
