@@ -277,7 +277,7 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 }
 
 /* ---------- Mehr oder weniger? ---------- */
-.kachel-bild { width: 78%; height: auto; }
+.kachel-bild { width: 74%; height: auto; }
 .regal-spiel span .kachel-bild, .kind-zeile .kachel-bild { width: 1.6em; vertical-align: -0.35em; }
 .umschalter { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 1rem; }
 .umschalter input { width: 22px; height: 22px; accent-color: var(--akzent); flex: none; }

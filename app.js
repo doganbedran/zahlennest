@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 4;
+const APP_VERSION = 5;
 
 const $ = (sel) => document.querySelector(sel);
 
