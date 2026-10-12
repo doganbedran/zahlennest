@@ -1,5 +1,5 @@
-// Testet „Kinder aus Wortnest übernehmen“: legt eine Wortnest-Datenbank „lernapp“ (Version 3, wie im Datenvertrag) mit
-// Kindern an – auch kaputte/fremde Einträge –, übernimmt sie und prüft: nur Name/Tier/Foto, geprüft, keine Doppelten,
+// Testet „Aus Wortnest übernehmen“: legt eine Wortnest-Datenbank „lernapp“ (Version 3, wie im Datenvertrag) mit
+// Kindern und Menschen an – auch kaputte/fremde Einträge –, übernimmt sie und prüft: nur Name/Tier/Foto, geprüft, keine Doppelten,
 // Wortnests Datenbank unverändert. Frisches Browserprofil. Ansicht am Ende: Elternbereich mit den Kindern.
 (async function () {
   const fehler = [];
@@ -18,7 +18,7 @@
 
   // 1. Wortnest-Datenbank wie auf dem Gerät anlegen (nur der Test schreibt hinein)
   const WORTNEST_KINDER = [
-    { id: 'k-1', name: 'Lina', tier: '🐰', foto, nameStimme: stimme, profil: 'standard', sterne: { a: 3 }, erstellt: 1 },
+    { id: 'k-1', name: 'Lina', tier: '🐰', foto, nameStimme: stimme, profil: 'p-oma', sterne: { a: 3 }, erstellt: 1 },
     { id: 'k-2', name: '  Benjamin-Maximilian-Alexander  ', tier: '💣', foto: null, erstellt: 2 },
     { id: 'k-3', name: { boese: 1 }, tier: '🐻', erstellt: 3 },
     { id: 'k-4', name: 'Mia', tier: '🐼', foto: new Blob(['<script>'], { type: 'text/html' }), erstellt: 4 },
@@ -36,8 +36,12 @@
   });
   const db = await lernapp(3);
   await new Promise((ok) => {
-    const tx = db.transaction('kinder', 'readwrite');
+    const tx = db.transaction(['kinder', 'profile', 'medien'], 'readwrite');
     WORTNEST_KINDER.forEach((k) => tx.objectStore('kinder').put(k));
+    tx.objectStore('profile').put({ id: 'p-oma', name: 'Oma', erstellt: 1, woerter: [{ id: 'w1', b: 'm', wort: 'Mama' }] });
+    tx.objectStore('profile').put({ id: 'p-leer', name: 42, erstellt: 2 });
+    tx.objectStore('medien').put(foto, 'p-oma|ich|bild');
+    tx.objectStore('medien').put(stimme, 'p-oma|lob-1|stimme');
     tx.oncomplete = ok;
   });
   db.close();
@@ -66,12 +70,19 @@
   pruefe(new Set(kinder.map((k) => k.id)).size === 3, 'Doppelte Kinder-IDs');
   pruefe(kinder.every((k) => Array.isArray(k.spieleAus) && 'holBis5' in k), 'Übernommene Kinder ohne Einstellungen');
   pruefe(zustand.kind === lina?.id, 'Erstes übernommenes Kind ist nicht ausgewählt');
+  // Menschen: Oma mit Foto, ohne Wortnest-Aufnahmen und -Wörter; ist Linas Stimme wie in Wortnest
+  const oma = menschen.find((p) => p.name === 'Oma');
+  pruefe(menschen.length === 1 && oma && oma.wortnestId === 'p-oma' && !('woerter' in oma), `Menschen: ${JSON.stringify(menschen)}`);
+  pruefe(oma && menschFotos[oma.id], 'Omas Foto nicht übernommen');
+  pruefe(oma && (await datenbank.medienVon(oma.id)).every((m) => m.platz === 'ich'), 'Wortnest-Aufnahmen übernommen');
+  pruefe(oma && lina && lina.stimme === oma.id && !ben.stimme, 'Hauptstimme aus Wortnest nicht übernommen');
+  pruefe(/Stimmen: Oma/.test(gefragt), `Frage nennt die Menschen nicht: ${gefragt}`);
   pruefe($('#kinder-liste img.foto'), 'Foto erscheint nicht in der Liste');
 
   // 4. Nochmal: nichts Doppeltes, nur ein Hinweis
   gefragt = '';
   await ausWortnestUebernehmen();
-  pruefe(kinder.length === 3 && !gefragt && /keine Kinder/.test(gemeldet), 'Zweites Übernehmen legt doppelt an');
+  pruefe(kinder.length === 3 && !gefragt && /nichts/.test(gemeldet) && menschen.length === 1, 'Zweites Übernehmen legt doppelt an');
 
   // 5. Wortnest unverändert: Version 3, alle Einträge samt Sternen
   const db2 = await lernapp();

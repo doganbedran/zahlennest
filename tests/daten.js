@@ -39,7 +39,7 @@
   pruefe(nest.every((k) => ['nest:spielzeit', 'nest:pauseNach', 'nest:pauseAm'].includes(k)), `Unbekannte gemeinsame Schlüssel: ${nest}`);
 
   // 4. Ohne Wortnest auf dem Gerät: kein Knopf „Aus Wortnest übernehmen“, Lesen legt nichts an
-  pruefe((await wortnestKinderLesen()).length === 0, 'Wortnest-Kinder ohne Wortnest');
+  pruefe((await wortnestLesen()).kinder.length === 0, 'Wortnest-Kinder ohne Wortnest');
   await wortnestKnopfZeigen();
   pruefe($('#btn-aus-wortnest').hidden, 'Knopf „Aus Wortnest übernehmen“ ohne Wortnest');
   // Datenbanken: „zahlennest“ ja, „lernapp“ nie

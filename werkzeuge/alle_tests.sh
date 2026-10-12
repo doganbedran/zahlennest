@@ -22,6 +22,8 @@ LAEUFE=(
   "kinder|tests/kinder.html#wer|412,860|90"
   "pause|tests/pause.html|412,860|60"
   "uebernehmen|tests/uebernehmen.html|412,860|60"
+  "stimme|tests/stimme.html|412,860|60"
+  "stimme-quer|tests/stimme.html|860,412|60"
   "daten|tests/daten.html|412,860|60"
   "wieviele|tests/wieviele.html|412,860|90"
   "wieviele-klein|tests/wieviele.html|360,640|90"

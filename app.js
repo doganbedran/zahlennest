@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 14;
+const APP_VERSION = 15;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -87,8 +87,36 @@ const datenbank = (() => {
       .sort((a, b) => a.erstellt - b.erstellt),
     kindSpeichern: (k) => aktion('kinder', 'readwrite', (s) => s.put(k)),
     kindLoeschen: (id) => aktion('kinder', 'readwrite', (s) => s.delete(id)),
+    // Menschen (Profile) und ihre Fotos/Aufnahmen; Medien-Schlüssel <profil>|<platz>|<art> wie in Wortnest
+    profile: async () => ((await aktion('profile', 'readonly', (s) => s.getAll())) || [])
+      .sort((a, b) => a.erstellt - b.erstellt),
+    profilSpeichern: (p) => aktion('profile', 'readwrite', (s) => s.put(p)),
+    async profilLoeschen(id) {
+      await aktion('medien', 'readwrite', (s) => s.delete(medienBereich(id)));
+      return aktion('profile', 'readwrite', (s) => s.delete(id));
+    },
+    medium: (profil, platz, art) => aktion('medien', 'readonly', (s) => s.get(`${profil}|${platz}|${art}`)),
+    // Alle Medien eines Profils als [{ platz, art, blob }] (Schlüssel und Inhalte aus derselben Transaktion)
+    medienVon: async (profil) => (await aktion('medien', 'readonly', (s) => {
+      const schluessel = s.getAllKeys(medienBereich(profil));
+      const inhalte = s.getAll(medienBereich(profil));
+      return { get result() {
+        return schluessel.result.map((k, i) => {
+          const teile = k.split('|');
+          return { platz: teile.slice(1, -1).join('|'), art: teile[teile.length - 1], blob: inhalte.result[i] };
+        });
+      } };
+    })) || [],
+    // true, wenn gespeichert (sonst z. B. Speicher voll)
+    medienSetzen: async (profil, platz, art, blob) =>
+      (await aktion('medien', 'readwrite', (s) => s.put(blob, `${profil}|${platz}|${art}`))) !== undefined,
+    medienEntfernen: (profil, platz, art) => aktion('medien', 'readwrite', (s) => s.delete(`${profil}|${platz}|${art}`)),
   };
 })();
+
+function medienBereich(profil) {
+  return IDBKeyRange.bound(`${profil}|`, `${profil}|\uffff`);
+}
 
 function htmlText(text) {
   const d = document.createElement('div');
@@ -146,6 +174,7 @@ function einstellungenLaden() {
   const k = aktivesKind();
   zustand.spiele = regalVon(k ? (k.spieleAus || START_AUS) : appWeitAus());
   SPIEL_OPTIONEN.forEach((o) => { zustand[o] = k ? !!(k[o] ?? optionStandard(o)) : !!speicher.lesen(o, optionStandard(o)); });
+  return stimmeLaden();
 }
 
 // Schalter einzelner Spiele (je Kind, ohne Kinder app-weit): Name = Feld beim Kind, Schlüssel zn:<Name>, data-option
@@ -282,7 +311,7 @@ async function folgeAbspielen(folge, ersatzText) {
   }
 }
 
-const ansage = (name) => folgeAbspielen([{ url: `audio/ansage-${name}.wav` }], ANSAGEN[name][0]);
+const ansage = (name) => folgeAbspielen([{ url: ansageUrl(name) }], ANSAGEN[name][0]);
 const warten = (ms) => new Promise((r) => setTimeout(r, ms));
 const zufall = (liste) => liste[Math.floor(Math.random() * liste.length)];
 function mischen(liste) {
@@ -311,7 +340,7 @@ async function zaehlenMitLeuchten(name, elemente, beiJedem = null) {
   };
   try {
     await new Promise((resolve, reject) => {
-      const a = new Audio(`audio/ansage-${name}.wav`);
+      const a = new Audio(ansageUrl(name));
       wiedergabe.audio = a;
       wiedergabe.beenden = resolve;
       a.onended = resolve;
@@ -362,6 +391,8 @@ window.addEventListener('popstate', () => {
   korbStoppen();
   trommelStoppen();
   holStoppen();
+  studioAbbrechen();
+  studioMikrofonZu();
   const ziel = (history.state && history.state.screen) || 'home';
   // Infoseite von der Begrüßung aus geöffnet: dorthin zurück
   if (ziel === 'home' && $('#info').classList.contains('active') && infoVonBegruessung) {
@@ -372,6 +403,11 @@ window.addEventListener('popstate', () => {
   if (ziel === 'eltern') {
     elternZeichnen();
     zeigen('eltern', false);
+    return;
+  }
+  if (ziel === 'mensch' && menschInArbeit) {
+    menschZeichnen();
+    zeigen('mensch', false);
     return;
   }
   spieleZeigen();
@@ -496,7 +532,7 @@ function spielBausteine(id, z) {
     aktuell,
     stoppen() { clearTimeout(z.timer); z.nummer++; z.gesperrt = true; },
     ansage: (nr, name) => (aktuell(nr)
-      ? folgeAbspielen([{ url: `audio/ansage-${name}.wav` }], ANSAGEN[name][0]).then(() => aktuell(nr)) : Promise.resolve(false)),
+      ? folgeAbspielen([{ url: ansageUrl(name) }], ANSAGEN[name][0]).then(() => aktuell(nr)) : Promise.resolve(false)),
     zaehlen: (nr, name, elemente, beiJedem) => (aktuell(nr)
       ? zaehlenMitLeuchten(name, elemente, beiJedem).then(() => aktuell(nr)) : Promise.resolve(false)),
   };
@@ -2125,6 +2161,7 @@ function elternOeffnen() {
 
 function elternZeichnen() {
   kinderListeZeichnen();
+  menschenListeZeichnen();
   wortnestKnopfZeigen();
   // Mit Kindern stellt man das Regal beim Kind ein
   $('#karte-regal').hidden = kinder.length > 0;
@@ -2189,6 +2226,7 @@ async function kindAnlegen(name, extra = {}) {
   };
   if (extra.foto) kind.foto = extra.foto;
   if (extra.wortnestId) kind.wortnestId = extra.wortnestId;
+  if (extra.stimme) kind.stimme = extra.stimme;
   await datenbank.kindSpeichern(kind);
   speicherSchuetzen();
   await kinderLaden();
@@ -2208,37 +2246,56 @@ $('#btn-kind-neu').addEventListener('click', kindNeu);
 
 // --- Aus Wortnest übernehmen (Regeln: ../Kinder-Lernapp/docs/datenvertrag.md, Vertrag Version 1) ---
 // Wortnests Datenbank „lernapp“ wird nur gelesen: ohne Versionsnummer geöffnet (löst nie ein Update aus); gibt es sie
-// auf dem Gerät nicht, wird das Anlegen abgebrochen. Übernommen werden nur Name, Tier und Foto – geprüft wie beim
-// Einspielen einer Sicherung (nur bekannte Felder, Name als Text, Foto nur als Bild).
-function wortnestKinderLesen() {
+// auf dem Gerät nicht, wird das Anlegen abgebrochen. Übernommen werden Kinder (Name, Tier, Foto, Hauptstimme) und
+// Menschen (Name, Foto) – geprüft wie beim Einspielen einer Sicherung (nur bekannte Felder, Namen als Text, nur Bilder).
+// Wortnests Sprachaufnahmen nicht: Zahlennest hat andere Sätze.
+function wortnestLesen() {
+  const leer = { kinder: [], profile: [], fotos: {} };
   return new Promise((fertig) => {
     let req;
-    try { req = indexedDB.open('lernapp'); } catch { fertig([]); return; }
+    try { req = indexedDB.open('lernapp'); } catch { fertig(leer); return; }
     req.onupgradeneeded = () => req.transaction.abort();   // Wortnest gibt es hier nicht: nichts anlegen
-    req.onerror = () => fertig([]);
+    req.onerror = () => fertig(leer);
     req.onsuccess = () => {
       const db = req.result;
       db.onversionchange = () => db.close();   // Wortnest will sich aktualisieren: sofort Platz machen
       try {
-        const tx = db.transaction('kinder', 'readonly');
-        const alle = tx.objectStore('kinder').getAll();
-        tx.oncomplete = () => { db.close(); fertig(alle.result || []); };
-        tx.onerror = () => { db.close(); fertig([]); };
-      } catch { db.close(); fertig([]); }
+        const tx = db.transaction(['kinder', 'profile', 'medien'], 'readonly');
+        const kinderAnfrage = tx.objectStore('kinder').getAll();
+        const profilAnfrage = tx.objectStore('profile').getAll();
+        const fotos = {};
+        profilAnfrage.onsuccess = () => (profilAnfrage.result || []).forEach((p) => {
+          if (!p || typeof p.id !== 'string') return;
+          const foto = tx.objectStore('medien').get(`${p.id}|ich|bild`);
+          foto.onsuccess = () => { if (foto.result) fotos[p.id] = foto.result; };
+        });
+        tx.oncomplete = () => { db.close(); fertig({ kinder: kinderAnfrage.result || [], profile: profilAnfrage.result || [], fotos }); };
+        tx.onerror = () => { db.close(); fertig(leer); };
+      } catch { db.close(); fertig(leer); }
     };
   });
 }
 
+const wortnestBild = (b) => (b instanceof Blob && /^image\/(jpeg|png|webp)$/.test(b.type) ? b : null);
+const wortnestName = (n, max) => (typeof n === 'string' ? n.trim().slice(0, max).replace(/[\s-]+$/, '') : '');
+
 function wortnestKindPruefen(k) {
-  if (!k || typeof k.id !== 'string' || typeof k.name !== 'string') return null;
-  const name = k.name.trim().slice(0, 20).replace(/[\s-]+$/, '');
+  if (!k || typeof k.id !== 'string') return null;
+  const name = wortnestName(k.name, 20);
   if (!name) return null;
   return {
     wortnestId: k.id.slice(0, 40),
     name,
     tier: TIERE.includes(k.tier) ? k.tier : null,
-    foto: k.foto instanceof Blob && /^image\/(jpeg|png|webp)$/.test(k.foto.type) ? k.foto : null,
+    foto: wortnestBild(k.foto),
+    profil: typeof k.profil === 'string' ? k.profil : null,
   };
+}
+
+function wortnestMenschPruefen(p, foto) {
+  if (!p || typeof p.id !== 'string' || !p.id.startsWith('p-')) return null;
+  const name = wortnestName(p.name, 30);
+  return name ? { wortnestId: p.id.slice(0, 40), name, foto: wortnestBild(foto) } : null;
 }
 
 // Knopf nur zeigen, wenn es auf dem Gerät Wortnest gibt (ältere Browser können das nicht prüfen: dann immer)
@@ -2249,15 +2306,31 @@ async function wortnestKnopfZeigen() {
 }
 
 async function ausWortnestUebernehmen() {
-  const schonDa = (k) => kinder.some((x) => x.wortnestId === k.wortnestId || x.name.toLowerCase() === k.name.toLowerCase());
-  const neu = (await wortnestKinderLesen()).map(wortnestKindPruefen).filter((k) => k && !schonDa(k));
-  if (!neu.length) {
-    alert('Aus Wortnest gibt es keine Kinder, die hier noch fehlen.');
+  const w = await wortnestLesen();
+  const gleich = (liste, x) => liste.some((y) => y.wortnestId === x.wortnestId || y.name.toLowerCase() === x.name.toLowerCase());
+  const neueKinder = w.kinder.map(wortnestKindPruefen).filter((k) => k && !gleich(kinder, k));
+  const neueMenschen = w.profile.map((p) => wortnestMenschPruefen(p, p && w.fotos[p.id])).filter((p) => p && !gleich(menschen, p));
+  if (!neueKinder.length && !neueMenschen.length) {
+    alert('Aus Wortnest gibt es nichts, was hier noch fehlt.');
     return;
   }
-  if (!confirm(`Aus Wortnest übernehmen: ${neu.map((k) => k.name).join(', ')}?\n\n`
-    + 'Übernommen werden Name, Tier und Foto. In Wortnest ändert sich nichts.')) return;
-  for (const k of neu) await kindAnlegen(k.name, k);
+  const liste = [neueKinder.length ? `Kinder: ${neueKinder.map((k) => k.name).join(', ')}` : '',
+    neueMenschen.length ? `Stimmen: ${neueMenschen.map((p) => p.name).join(', ')}` : ''].filter(Boolean).join('\n');
+  if (!confirm(`Aus Wortnest übernehmen?\n\n${liste}\n\nÜbernommen werden Namen, Tiere und Fotos – Aufnahmen nicht, `
+    + 'weil Zahlennest andere Sätze hat. In Wortnest ändert sich nichts.')) return;
+  for (const p of neueMenschen) {
+    const mensch = { id: `p-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name: p.name, erstellt: Date.now(), wortnestId: p.wortnestId };
+    await datenbank.profilSpeichern(mensch);
+    if (p.foto) await datenbank.medienSetzen(mensch.id, 'ich', 'bild', p.foto);
+  }
+  await menschenLaden();
+  // Hauptstimme aus Wortnest mitnehmen, wenn es den Menschen hier gibt
+  for (const k of neueKinder) {
+    const stimme = menschen.find((p) => p.wortnestId && p.wortnestId === k.profil);
+    await kindAnlegen(k.name, { ...k, stimme: stimme ? stimme.id : null });
+  }
+  speicherSchuetzen();
+  await einstellungenLaden();
   elternZeichnen();
 }
 $('#btn-aus-wortnest').addEventListener('click', ausWortnestUebernehmen);
@@ -2299,6 +2372,8 @@ function kindFormularZeichnen() {
   $('#btn-kind-foto-weg').hidden = !k.foto;
   regalWahlZeichnen($('#kind-spiele'), regalVon(k.spieleAus || START_AUS), (neu) => kindAendern((kk) => { kk.spieleAus = ausVon(neu); }));
   spielOptionenZeigen();
+  stimmeWahlZeichnen($('#kind-stimme'), k.stimme || null, (id) => kindAendern((kk) => { kk.stimme = id; }));
+  $('#karte-kind-stimme').hidden = !menschen.length;
   document.querySelectorAll('#kind [data-option]').forEach((box) => { box.checked = !!(k[box.dataset.option] ?? optionStandard(box.dataset.option)); });
 }
 
@@ -2399,6 +2474,421 @@ async function fotoVerkleinern(datei) {
   return new Promise((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject()), 'image/jpeg', 0.85));
 }
 
+// ---------- Eigene Stimmen: Menschen sprechen die Sätze der Spiele selbst ein (alles bleibt auf dem Gerät) ----------
+// Ein Mensch = Profil { id 'p-…', name (≤ 30), erstellt, wortnestId? }. Medien wie in Wortnest: Foto = ich|bild,
+// Aufnahme eines Satzes = datei:ansage-<name>.wav|stimme (gleiche Form wie Wortnests Studio, für ein späteres Stimm-Paket).
+// Wer spricht: beim Kind „stimme“ (ohne Kinder app-weit zn:stimme); null = Computerstimme. Was ein Mensch noch nicht
+// eingesprochen hat, spricht die Computerstimme. Zählfolgen sind immer eine ganze Aufnahme – kein Wechsel mittendrin.
+
+let menschen = [];
+let menschFotos = {};      // Profil-ID -> Objekt-URL des Fotos
+let eigeneAnsagen = {};    // Ansage-Name -> Objekt-URL der Aufnahme der aktiven Stimme
+let stimmeLauf = 0;
+
+const ansageUrl = (name) => eigeneAnsagen[name] || `audio/ansage-${name}.wav`;
+const ansagePlatz = (name) => `datei:ansage-${name}.wav`;
+const ansageVonPlatz = (platz) => { const t = /^datei:ansage-(.+)\.wav$/.exec(platz); return t && ANSAGEN[t[1]] ? t[1] : null; };
+
+async function menschenLaden() {
+  Object.values(menschFotos).forEach((url) => URL.revokeObjectURL(url));
+  menschFotos = {};
+  menschen = await datenbank.profile();
+  for (const p of menschen) {
+    const foto = await datenbank.medium(p.id, 'ich', 'bild');
+    if (foto) menschFotos[p.id] = URL.createObjectURL(foto);
+  }
+}
+
+function menschBildHtml(p) {
+  if (!p) return '🤖';
+  return menschFotos[p.id] ? `<img class="bild-datei foto" src="${menschFotos[p.id]}" alt="">` : '🙂';
+}
+
+function aktiveStimmeId() {
+  const k = aktivesKind();
+  const id = k ? k.stimme : speicher.lesen('stimme', null);
+  return menschen.some((p) => p.id === id) ? id : null;
+}
+
+// Aufnahmen der aktiven Stimme bereitlegen (beim Start, Kindwechsel und nach dem Einsprechen)
+async function stimmeLaden() {
+  const lauf = ++stimmeLauf;
+  const id = aktiveStimmeId();
+  const neu = {};
+  if (id) {
+    (await datenbank.medienVon(id)).forEach((m) => {
+      const name = ansageVonPlatz(m.platz);
+      if (name && m.art === 'stimme' && m.blob instanceof Blob) neu[name] = URL.createObjectURL(m.blob);
+    });
+  }
+  if (lauf !== stimmeLauf) { Object.values(neu).forEach((url) => URL.revokeObjectURL(url)); return; }
+  Object.values(eigeneAnsagen).forEach((url) => URL.revokeObjectURL(url));
+  eigeneAnsagen = neu;
+}
+
+// Auswahl „Wer spricht?“: Computerstimme oder ein Mensch
+function stimmeWahlZeichnen(box, gewaehlt, aendern) {
+  box.innerHTML = '';
+  [null, ...menschen].forEach((p) => {
+    const zeile = document.createElement('label');
+    zeile.className = 'umschalter stimme-zeile';
+    zeile.innerHTML = `<input type="radio" name="${box.id}" ${(p ? p.id : null) === gewaehlt ? 'checked' : ''}>`
+      + `<span class="mensch-bild">${menschBildHtml(p)}</span><span>${p ? htmlText(p.name) : 'Computerstimme'}</span>`;
+    zeile.querySelector('input').addEventListener('change', () => aendern(p ? p.id : null));
+    box.appendChild(zeile);
+  });
+}
+
+// --- Liste im Elternbereich ---
+
+async function menschenListeZeichnen() {
+  const box = $('#menschen-liste');
+  box.innerHTML = '';
+  for (const p of menschen) {
+    const eigen = (await datenbank.medienVon(p.id)).filter((m) => m.art === 'stimme' && ansageVonPlatz(m.platz)).length;
+    const zeile = document.createElement('button');
+    zeile.className = 'kind-zeile';
+    zeile.innerHTML = `<span class="kind-bild">${menschBildHtml(p)}</span>`
+      + `<span class="w">${htmlText(p.name)}<br><small>${eigen} von ${Object.keys(ANSAGEN).length} Sätzen eingesprochen</small></span>`
+      + '<span class="pfeil">✏️</span>';
+    zeile.addEventListener('click', () => menschBearbeiten(p.id));
+    box.appendChild(zeile);
+  }
+  // Ohne Kinder gilt die Wahl für die ganze App (mit Kindern beim Kind)
+  $('#stimme-app').hidden = !!kinder.length || !menschen.length;
+  if (!kinder.length) {
+    stimmeWahlZeichnen($('#stimme-app-wahl'), aktiveStimmeId(), async (id) => {
+      speicher.schreiben('stimme', id);
+      await stimmeLaden();
+    });
+  }
+}
+
+async function menschNeu() {
+  const name = (prompt('Wer spricht? Name, z. B. Mama, Papa, Oma:') || '').trim();
+  if (!name) return null;
+  const mensch = { id: `p-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name: name.slice(0, 30), erstellt: Date.now() };
+  await datenbank.profilSpeichern(mensch);
+  speicherSchuetzen();
+  await menschenLaden();
+  menschBearbeiten(mensch.id);
+  return mensch;
+}
+$('#btn-mensch-neu').addEventListener('click', menschNeu);
+
+// --- Ein Mensch: Name, Foto, Sätze einsprechen, für wen ---
+
+let menschInArbeit = null;
+
+function menschBearbeiten(id) {
+  menschInArbeit = menschen.find((p) => p.id === id) || null;
+  if (!menschInArbeit) return;
+  menschZeichnen();
+  zeigen('mensch');
+}
+
+async function menschZeichnen() {
+  const p = menschInArbeit;
+  $('#mensch-titel').textContent = p.name;
+  const name = $('#mensch-name');
+  if (document.activeElement !== name) name.value = p.name;
+  $('#mensch-foto').innerHTML = menschBildHtml(p);
+  $('#btn-mensch-foto-weg').hidden = !menschFotos[p.id];
+  const eigen = (await datenbank.medienVon(p.id)).filter((m) => m.art === 'stimme' && ansageVonPlatz(m.platz)).length;
+  $('#mensch-stand').textContent = `${eigen} von ${Object.keys(ANSAGEN).length} Sätzen eingesprochen.`;
+  const fuer = kinder.filter((k) => k.stimme === p.id).map((k) => k.name);
+  $('#mensch-fuer').textContent = kinder.length
+    ? (fuer.length ? `Spricht für: ${fuer.join(', ')}.` : 'Spricht noch für kein Kind – beim Kind unter „Stimme“ auswählen.')
+    : (aktiveStimmeId() === p.id ? 'Spricht in der App.' : 'Spricht noch nicht – im Elternbereich unter „Stimmen“ auswählen.');
+}
+
+async function menschAendern(fn) {
+  fn(menschInArbeit);
+  await datenbank.profilSpeichern(menschInArbeit);
+  await menschenLaden();
+  menschInArbeit = menschen.find((p) => p.id === menschInArbeit.id);
+  menschZeichnen();
+}
+
+$('#mensch-name').addEventListener('change', (e) => {
+  const name = e.target.value.trim().slice(0, 30);
+  if (name) menschAendern((p) => { p.name = name; });
+  else e.target.value = menschInArbeit.name;
+});
+$('#btn-mensch-foto').addEventListener('click', () => fotoWaehlen(async (blob) => {
+  if (!(await datenbank.medienSetzen(menschInArbeit.id, 'ich', 'bild', blob))) { alert('Speichern ging nicht – vielleicht ist der Speicher voll.'); return; }
+  await menschAendern(() => {});
+}));
+$('#btn-mensch-foto-weg').addEventListener('click', async () => {
+  await datenbank.medienEntfernen(menschInArbeit.id, 'ich', 'bild');
+  await menschAendern(() => {});
+});
+$('#btn-mensch-studio').addEventListener('click', () => studioOeffnen(menschInArbeit.id));
+
+$('#btn-mensch-loeschen').addEventListener('click', async () => {
+  const p = menschInArbeit;
+  if (!confirm(`„${p.name}“ mit allen Aufnahmen und dem Foto löschen? Dann spricht wieder die Computerstimme.`)) return;
+  await datenbank.profilLoeschen(p.id);
+  for (const k of kinder.filter((kk) => kk.stimme === p.id)) {
+    k.stimme = null;
+    await datenbank.kindSpeichern(k);
+  }
+  if (speicher.lesen('stimme', null) === p.id) speicher.schreiben('stimme', null);
+  menschInArbeit = null;
+  await kinderLaden();
+  await menschenLaden();
+  await einstellungenLaden();
+  history.back();
+});
+$('#btn-mensch-zurueck').addEventListener('click', () => history.back());
+
+// --- Studio: jeden Satz einmal einsprechen (gedrückt halten), anhören, speichern ---
+
+const STUDIO_RATE = 22050;
+const studio = { mensch: null, bereich: null, pos: 0, aufnahme: null, stream: null, rekorder: null, startet: false,
+  gedrueckt: false, stoppTimer: null, lauf: 0, eigen: new Set() };
+// lauf: zählt bei jedem Wechsel/Verlassen hoch – späte Ergebnisse (Mikrofon, Aufbereitung) gehören dann nicht mehr hierher
+const studioAktuell = (lauf) => lauf === studio.lauf && $('#studio').classList.contains('active') && !document.hidden;
+const studioBereiche = () => [...new Set(Object.values(ANSAGEN).map(([, spiel]) => spiel))];
+const studioStuecke = (bereich) => Object.keys(ANSAGEN).filter((n) => ANSAGEN[n][1] === bereich);
+const istZaehlfolge = (name) => /^Eins[,.!]/.test(ANSAGEN[name][0]);
+
+function studioTipp(name) {
+  if (istZaehlfolge(name)) return 'Zählen in einem Zug: langsam, etwa eine Sekunde pro Zahl mit kleiner Pause – die letzte Zahl betonen.';
+  return `Ansage bei „${ANSAGEN[name][1]}“ – freundlich und ruhig, wie zu einem Kind neben Ihnen.`;
+}
+
+async function studioOeffnen(menschId) {
+  const p = menschen.find((x) => x.id === menschId);
+  if (!p) return;
+  studio.mensch = p.id;
+  studio.eigen = new Set((await datenbank.medienVon(p.id)).filter((m) => m.art === 'stimme').map((m) => ansageVonPlatz(m.platz)).filter(Boolean));
+  $('#studio-titel').textContent = `Stimme: ${p.name}`;
+  $('#studio-hinweis').hidden = !!speicher.lesen('studioHinweis', false);
+  zeigen('studio');
+  // Mit dem ersten Bereich beginnen, in dem noch etwas fehlt
+  studio.bereich = studioBereiche().find((b) => studioStuecke(b).some((n) => !studio.eigen.has(n))) || studioBereiche()[0];
+  studioErstesOffenes();
+}
+
+function studioZeichnen() {
+  const stuecke = studioStuecke(studio.bereich);
+  const name = stuecke[studio.pos];
+  const reiter = $('#studio-reiter');
+  reiter.innerHTML = '';
+  studioBereiche().forEach((b) => {
+    const btn = document.createElement('button');
+    btn.className = b === studio.bereich ? 'aktiv' : '';
+    btn.textContent = `${b} ${studioStuecke(b).filter((n) => studio.eigen.has(n)).length}/${studioStuecke(b).length}`;
+    btn.addEventListener('click', () => { studioAbbrechen(); studio.bereich = b; studioErstesOffenes(); });
+    reiter.appendChild(btn);
+  });
+  $('#studio-balken').style.width = `${(stuecke.filter((n) => studio.eigen.has(n)).length / stuecke.length) * 100}%`;
+  $('#studio-text').textContent = ANSAGEN[name][0];
+  $('#studio-text').classList.toggle('eigen', studio.eigen.has(name));
+  $('#studio-tipp').textContent = studioTipp(name);
+  $('#btn-studio-meins').disabled = !studio.eigen.has(name);
+  $('#btn-studio-zuruecksetzen').hidden = !studio.eigen.has(name);
+  $('#btn-studio-gut').disabled = !studio.aufnahme;
+  $('#btn-studio-vor').disabled = studio.pos === 0;
+  $('#btn-studio-weiter').disabled = studio.pos === stuecke.length - 1;
+}
+
+function studioMeldung(text, warnung = false) {
+  const m = $('#studio-meldung');
+  m.textContent = text;
+  m.classList.toggle('warnung', warnung);
+}
+
+function studioGehe(pos) {
+  studioAbbrechen();
+  studio.pos = Math.max(0, Math.min(studioStuecke(studio.bereich).length - 1, pos));
+  studioMeldung('Gedrückt halten und sprechen, dann loslassen.');
+  studioZeichnen();
+}
+
+function studioErstesOffenes() {
+  const i = studioStuecke(studio.bereich).findIndex((n) => !studio.eigen.has(n));
+  studioGehe(i >= 0 ? i : 0);
+}
+
+// Mikrofon nur, solange das Studio offen ist; beim Verlassen oder im Hintergrund ganz schließen
+function studioMikrofonZu() {
+  clearTimeout(studio.stoppTimer);
+  if (studio.rekorder && studio.rekorder.state === 'recording') { studio.rekorder.onstop = null; studio.rekorder.stop(); }
+  studio.rekorder = null;
+  if (studio.stream) studio.stream.getTracks().forEach((t) => t.stop());
+  studio.stream = null;
+  $('#btn-studio-mikro').classList.remove('aktiv');
+}
+
+function studioAbbrechen() {
+  studio.lauf++;
+  if (studio.rekorder) studioMikrofonZu();
+  studio.aufnahme = null;
+}
+
+async function studioAufnahmeStart() {
+  if (studio.rekorder || studio.startet) return;
+  if (!navigator.mediaDevices || !window.MediaRecorder) { studioMeldung('Aufnehmen geht nur in der installierten App bzw. über https.', true); return; }
+  studio.startet = true;
+  wiedergabeStoppen();
+  const lauf = studio.lauf;
+  try {
+    const stream = studio.stream || await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true } });
+    // Inzwischen verlassen (z. B. während der Berechtigungsfrage): Mikrofon sofort wieder schließen
+    if (!studioAktuell(lauf)) { stream.getTracks().forEach((t) => t.stop()); studio.startet = false; return; }
+    studio.stream = stream;
+  } catch {
+    studio.startet = false;
+    studioMeldung('Kein Zugriff aufs Mikrofon. Bitte in den Einstellungen des Handys/Browsers das Mikrofon für diese App erlauben.', true);
+    return;
+  }
+  studio.startet = false;
+  if (!studio.gedrueckt) return;   // schon wieder losgelassen, während das Mikrofon aufging
+  const teile = [];
+  const r = new MediaRecorder(studio.stream);
+  studio.rekorder = r;
+  r.ondataavailable = (e) => { if (e.data.size) teile.push(e.data); };
+  const name = studioStuecke(studio.bereich)[studio.pos];   // gehört zu diesem Satz, auch wenn danach weitergeblättert wird
+  r.onstop = () => { studio.rekorder = null; $('#btn-studio-mikro').classList.remove('aktiv'); studioVerarbeiten(new Blob(teile, { type: r.mimeType }), name, lauf); };
+  r.start();
+  $('#btn-studio-mikro').classList.add('aktiv');
+  studioMeldung('Ich höre zu …');
+  studioPegelStarten(studio.stream, r);
+  // Sicherheitsstopp: Zählen „eins … fünf“ langsam braucht länger als ein Satz
+  studio.stoppTimer = setTimeout(() => { if (r.state === 'recording') r.stop(); }, istZaehlfolge(name) ? 14000 : 8000);
+}
+
+function studioAufnahmeStopp() {
+  studio.gedrueckt = false;
+  clearTimeout(studio.stoppTimer);
+  if (studio.rekorder && studio.rekorder.state === 'recording') studio.rekorder.stop();
+}
+
+// Pegel-Balken während der Aufnahme: zeigt, dass die App hört (und ob es zu leise ist)
+function studioPegelStarten(stream, rekorder) {
+  const ctx = audio();
+  const balken = $('#studio-pegel');
+  if (!ctx || !balken) return;
+  let quelle;
+  try { quelle = ctx.createMediaStreamSource(stream); } catch { return; }
+  const analyse = ctx.createAnalyser();
+  analyse.fftSize = 512;
+  quelle.connect(analyse);
+  const daten = new Uint8Array(analyse.fftSize);
+  const schritt = () => {
+    if (rekorder.state !== 'recording') { balken.style.width = '0'; quelle.disconnect(); return; }
+    analyse.getByteTimeDomainData(daten);
+    let spitze = 0;
+    for (const x of daten) spitze = Math.max(spitze, Math.abs(x - 128));
+    balken.style.width = `${Math.min(100, (spitze / 128) * 160)}%`;
+    requestAnimationFrame(schritt);
+  };
+  requestAnimationFrame(schritt);
+}
+
+// Auf 22050 Hz umrechnen, Stille am Anfang/Ende abschneiden, Lautstärke angleichen (wie in Wortnest)
+async function studioAufbereiten(blob) {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  const ctx = new Ctx();
+  let puffer;
+  try { puffer = await ctx.decodeAudioData(await blob.arrayBuffer()); } finally { ctx.close(); }
+  const off = new OfflineAudioContext(1, Math.ceil(puffer.duration * STUDIO_RATE), STUDIO_RATE);
+  const q = off.createBufferSource();
+  q.buffer = puffer;
+  q.connect(off.destination);
+  q.start();
+  const d = (await off.startRendering()).getChannelData(0);
+  const fenster = Math.round(STUDIO_RATE * 0.01);
+  const energie = [];
+  for (let i = 0; i < d.length; i += fenster) {
+    let summe = 0;
+    for (let j = i; j < Math.min(d.length, i + fenster); j++) summe += d[j] * d[j];
+    energie.push(Math.sqrt(summe / fenster));
+  }
+  const spitze = Math.max(0, ...energie);
+  if (spitze < 0.01) return null;
+  const schwelle = Math.max(0.006, spitze * 0.1);
+  const erstes = energie.findIndex((e) => e >= schwelle);
+  const letztes = energie.length - 1 - [...energie].reverse().findIndex((e) => e >= schwelle);
+  if (letztes - erstes < 6) return null;   // nur ein Klick
+  const t = d.slice(Math.max(0, erstes - 4) * fenster, Math.min(energie.length, letztes + 10) * fenster);
+  const hoch = t.reduce((m, x) => Math.max(m, Math.abs(x)), 1e-6);
+  const blende = Math.round(STUDIO_RATE * 0.008);
+  return t.map((x, i) => x / hoch * 0.9 * Math.min(1, i / blende, (t.length - 1 - i) / blende));
+}
+
+function studioWav(t) {
+  const buf = new ArrayBuffer(44 + t.length * 2);
+  const v = new DataView(buf);
+  const text = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  text(0, 'RIFF'); v.setUint32(4, 36 + t.length * 2, true); text(8, 'WAVE');
+  text(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, STUDIO_RATE, true); v.setUint32(28, STUDIO_RATE * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  text(36, 'data'); v.setUint32(40, t.length * 2, true);
+  t.forEach((x, i) => v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, x)) * 32767, true));
+  return new Blob([buf], { type: 'audio/wav' });
+}
+
+async function studioVerarbeiten(blob, name = studioStuecke(studio.bereich)[studio.pos], lauf = studio.lauf) {
+  let t = null;
+  try { t = await studioAufbereiten(blob); } catch { t = null; }
+  if (lauf !== studio.lauf || !$('#studio').classList.contains('active')) return;   // inzwischen weitergeblättert/verlassen
+  if (!t) { studio.aufnahme = null; studioZeichnen(); studioMeldung('Nichts gehört – bitte etwas lauter nochmal.', true); return; }
+  studio.aufnahme = studioWav(t);
+  studioZeichnen();
+  studioMeldung('So klingt es im Spiel. Gut? Dann „Gut, weiter“ – sonst einfach nochmal halten.');
+  studioAbspielen(studio.aufnahme);
+}
+
+function studioAbspielen(blob) {
+  const url = URL.createObjectURL(blob);
+  folgeAbspielen([{ url }]).finally(() => setTimeout(() => URL.revokeObjectURL(url), 1000));
+}
+
+async function studioSpeichern() {
+  if (!studio.aufnahme) return;
+  const name = studioStuecke(studio.bereich)[studio.pos];
+  speicherSchuetzen();
+  if (!(await datenbank.medienSetzen(studio.mensch, ansagePlatz(name), 'stimme', studio.aufnahme))) {
+    studioMeldung('Speichern ging nicht – vielleicht ist der Speicher voll.', true);
+    return;
+  }
+  studio.eigen.add(name);
+  studio.aufnahme = null;
+  if (aktiveStimmeId() === studio.mensch) await stimmeLaden();
+  const naechstes = studioStuecke(studio.bereich).findIndex((n, i) => i > studio.pos && !studio.eigen.has(n));
+  studioGehe(naechstes >= 0 ? naechstes : studio.pos);
+  studioMeldung(`„${ANSAGEN[name][0]}“ gespeichert.`);
+}
+
+async function studioZuruecksetzen() {
+  const name = studioStuecke(studio.bereich)[studio.pos];
+  if (!confirm(`Ihre Aufnahme für „${ANSAGEN[name][0]}“ löschen? Dann spricht hier wieder die Computerstimme.`)) return;
+  await datenbank.medienEntfernen(studio.mensch, ansagePlatz(name), 'stimme');
+  studio.eigen.delete(name);
+  if (aktiveStimmeId() === studio.mensch) await stimmeLaden();
+  studioZeichnen();
+}
+
+const mikro = $('#btn-studio-mikro');
+mikro.addEventListener('pointerdown', (e) => { e.preventDefault(); mikro.setPointerCapture(e.pointerId); studio.gedrueckt = true; studioAufnahmeStart(); });
+['pointerup', 'pointercancel'].forEach((ev) => mikro.addEventListener(ev, studioAufnahmeStopp));
+mikro.addEventListener('contextmenu', (e) => e.preventDefault());
+$('#btn-studio-gut').addEventListener('click', studioSpeichern);
+$('#btn-studio-standard').addEventListener('click', () => folgeAbspielen([{ url: `audio/ansage-${studioStuecke(studio.bereich)[studio.pos]}.wav` }]));
+$('#btn-studio-meins').addEventListener('click', async () => {
+  const blob = await datenbank.medium(studio.mensch, ansagePlatz(studioStuecke(studio.bereich)[studio.pos]), 'stimme');
+  if (blob) studioAbspielen(blob);
+});
+$('#btn-studio-vor').addEventListener('click', () => studioGehe(studio.pos - 1));
+$('#btn-studio-weiter').addEventListener('click', () => studioGehe(studio.pos + 1));
+$('#btn-studio-zuruecksetzen').addEventListener('click', studioZuruecksetzen);
+$('#btn-studio-ok').addEventListener('click', () => { speicher.schreiben('studioHinweis', true); $('#studio-hinweis').hidden = true; });
+$('#btn-studio-zurueck').addEventListener('click', () => history.back());
+document.addEventListener('visibilitychange', () => { if (document.hidden) { studioAbbrechen(); studioMikrofonZu(); } });
+
 // ---------- Über die App & Datenschutz (für Eltern; erreichbar aus dem Elternbereich und der Begrüßung) ----------
 
 let infoVonBegruessung = false;
@@ -2431,8 +2921,9 @@ $('#btn-willkommen-kind').addEventListener('click', async () => {
 // Promise, damit Tests auf das Ende des Starts warten können
 const startFertig = (async () => {
   await kinderLaden();
+  await menschenLaden();
   if (zustand.kind && !aktivesKind()) zustand.kind = kinder.length ? kinder[0].id : null;
-  einstellungenLaden();
+  await einstellungenLaden();
   if (kinder.length) speicherSchuetzen();
   spieleZeigen();
   document.body.classList.remove('laedt');

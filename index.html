@@ -55,7 +55,7 @@
       </div>
       <div class="karte">
         <h3>Datenschutz</h3>
-        <p><b>Alles bleibt auf diesem Gerät.</b> Namen der Kinder, Fotos und Einstellungen speichert die App nur im
+        <p><b>Alles bleibt auf diesem Gerät.</b> Namen der Kinder, Fotos, eigene Sprachaufnahmen und Einstellungen speichert die App nur im
           Speicher dieses Browsers bzw. der installierten App. Es gibt kein Konto, keinen eigenen Server, keine Werbung,
           keine Analyse- oder Tracking-Dienste, und nichts wird an Dritte gesendet.</p>
         <p><b>Kamera und Mikrofon</b> werden nur benutzt, wenn Sie ausdrücklich ein Foto wählen oder etwas aufnehmen.</p>
@@ -192,7 +192,19 @@
           „Wer spielt?“. Die App zählt nichts über Ihr Kind – es gibt keine Punkte und keine Ranglisten.</p>
         <div id="kinder-liste" class="kinder-liste"></div>
         <button id="btn-kind-neu" class="text-btn">➕ Kind hinzufügen</button>
-        <button id="btn-aus-wortnest" class="text-btn" hidden>📥 Kinder aus Wortnest übernehmen</button>
+        <button id="btn-aus-wortnest" class="text-btn" hidden>📥 Aus Wortnest übernehmen</button>
+      </div>
+
+      <div class="karte">
+        <h3>Stimmen 🎙️</h3>
+        <p class="hinweis">Statt der Computerstimme können Sie (oder Oma, Opa …) die Sätze der Spiele selbst einsprechen.
+          Die Aufnahmen bleiben nur auf diesem Gerät. Was noch nicht eingesprochen ist, spricht weiter die Computerstimme.</p>
+        <div id="menschen-liste" class="kinder-liste"></div>
+        <button id="btn-mensch-neu" class="text-btn">➕ Mensch hinzufügen</button>
+        <div id="stimme-app" hidden>
+          <p class="hinweis">Wer spricht in der App?</p>
+          <div id="stimme-app-wahl" class="stimme-wahl"></div>
+        </div>
       </div>
 
       <div class="karte" id="karte-regal">
@@ -299,10 +311,87 @@
           <label class="umschalter"><input type="checkbox" id="kind-holKuscheltier" data-option="holKuscheltier"> 🧸 Kuscheltiere</label>
         </div>
       </div>
+      <div class="karte" id="karte-kind-stimme" hidden>
+        <h3>Stimme</h3>
+        <p class="hinweis">Wer in den Spielen spricht. Am besten bleibt es bei einer Stimme pro Kind.</p>
+        <div id="kind-stimme" class="stimme-wahl"></div>
+      </div>
       <div class="karte">
         <div class="knopf-reihe">
           <button id="btn-kind-loeschen" class="text-btn warnung">🗑️ Kind löschen</button>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="mensch" class="screen eltern">
+    <header class="topbar">
+      <button id="btn-mensch-zurueck" class="icon-btn" aria-label="Zurück">⬅️</button>
+      <h2 id="mensch-titel">Stimme</h2>
+      <span></span>
+    </header>
+    <div class="eltern-inhalt">
+      <div class="karte">
+        <h3>Name</h3>
+        <input id="mensch-name" class="textfeld" type="text" maxlength="30" autocomplete="off">
+      </div>
+      <div class="karte">
+        <h3>Foto</h3>
+        <p class="hinweis">Nur für Sie zum Erkennen in den Listen.</p>
+        <div class="mensch-foto-reihe">
+          <span id="mensch-foto" class="mensch-bild gross"></span>
+          <div class="knopf-reihe">
+            <button id="btn-mensch-foto" class="text-btn">📷 Foto</button>
+            <button id="btn-mensch-foto-weg" class="text-btn">↩️ Kein Foto</button>
+          </div>
+        </div>
+      </div>
+      <div class="karte">
+        <h3>Sätze einsprechen</h3>
+        <p class="hinweis" id="mensch-stand"></p>
+        <p class="hinweis" id="mensch-fuer"></p>
+        <button id="btn-mensch-studio" class="text-btn">🎙️ Sätze einsprechen</button>
+      </div>
+      <div class="karte">
+        <div class="knopf-reihe">
+          <button id="btn-mensch-loeschen" class="text-btn warnung">🗑️ Löschen (mit allen Aufnahmen)</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="studio" class="screen eltern">
+    <header class="topbar">
+      <button id="btn-studio-zurueck" class="icon-btn" aria-label="Zurück">⬅️</button>
+      <h2 id="studio-titel">Stimme einsprechen</h2>
+      <span></span>
+    </header>
+    <div class="eltern-inhalt studio">
+      <div class="karte" id="studio-hinweis" hidden>
+        <h3>Bevor es losgeht</h3>
+        <p class="hinweis">Ihre Aufnahmen bleiben nur auf diesem Gerät – nichts wird gesendet. Bitte in ruhiger Umgebung
+          aufnehmen, ohne Kinderstimmen oder Namen im Hintergrund. Wer die App oder die Browserdaten löscht, verliert
+          die Aufnahmen. Zählen immer in einem Zug einsprechen, langsam – die letzte Zahl betonen.</p>
+        <button id="btn-studio-ok" class="text-btn">Verstanden</button>
+      </div>
+      <div class="studio-reiter" id="studio-reiter"></div>
+      <div class="studio-balken"><span id="studio-balken"></span></div>
+      <div class="karte studio-karte">
+        <div class="studio-text" id="studio-text"></div>
+        <p class="hinweis" id="studio-tipp"></p>
+        <div class="knopf-reihe">
+          <button id="btn-studio-standard" class="text-btn">▶ Computerstimme</button>
+          <button id="btn-studio-meins" class="text-btn">▶ Meins</button>
+        </div>
+        <button id="btn-studio-mikro" class="studio-mikro" aria-label="Gedrückt halten zum Aufnehmen">🎙️</button>
+        <div class="studio-pegel" aria-hidden="true"><span id="studio-pegel"></span></div>
+        <p class="hinweis studio-meldung" id="studio-meldung">Gedrückt halten und sprechen, dann loslassen.</p>
+        <button id="btn-studio-gut" class="text-btn studio-gut" disabled>✓ Gut, weiter</button>
+        <div class="knopf-reihe studio-nav">
+          <button id="btn-studio-vor" class="text-btn">← vorheriger</button>
+          <button id="btn-studio-weiter" class="text-btn">überspringen →</button>
+        </div>
+        <button id="btn-studio-zuruecksetzen" class="text-btn warnung">↩️ Wieder Computerstimme</button>
       </div>
     </div>
   </section>

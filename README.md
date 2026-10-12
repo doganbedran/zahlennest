@@ -57,4 +57,5 @@ Alle Spiele enden gleich: Das Spiel macht den Auftrag einmal vor, dann „Jetzt 
 Beide Apps liegen unter `doganbedran.github.io` und teilen sich damit den Browser-Speicher. Zahlennest nutzt darum
 eine eigene Datenbank `zahlennest`, nur Schlüssel mit `zn:` und gemeinsam mit Wortnest nur die Pause (`nest:spielzeit`,
 `nest:pauseNach`, `nest:pauseAm`; Format in `app.js` beim Abschnitt „Pause“). Der Offline-Speicher räumt nur eigene
-Caches (`zahlennest-…`) auf. Kinder lassen sich im Elternbereich aus Wortnest übernehmen (nur lesend, Name/Tier/Foto).
+Caches (`zahlennest-…`) auf. Kinder und Menschen lassen sich im Elternbereich aus Wortnest übernehmen (nur lesend, Namen/Tiere/Fotos).
+Eigene Stimmen: Im Elternbereich unter „Stimmen“ sprechen Menschen die Sätze selbst ein; die Aufnahmen bleiben auf dem Gerät.
