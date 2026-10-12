@@ -1,7 +1,21 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 11;
+const APP_VERSION = 12;
+
+// Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
+// eingebettet → nur ein Hinweis mit Link, die App startet nicht
+if (window.top !== window.self) {
+  document.body.className = '';
+  document.body.textContent = '';
+  const a = document.createElement('a');
+  a.href = location.href;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.textContent = 'Zahlennest in einem eigenen Fenster öffnen';
+  document.body.append(a);
+  throw new Error('Zahlennest läuft nicht eingebettet');
+}
 
 const $ = (sel) => document.querySelector(sel);
 

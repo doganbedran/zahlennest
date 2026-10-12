@@ -4,3 +4,4 @@
 __pycache__/
 # Testseiten werden aus index.html erzeugt (werkzeuge/testseiten_erzeugen.sh)
 tests/*.html
+tests/*.vorher.js

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Erzeugt die Testseiten tests/<name>.html aus der aktuellen index.html (läuft automatisch in alle_tests.sh).
 # Jede Seite = App + tests/<name>.js; <base href="/"> lässt die App ihre Dateien (app.js, audio/ …) vom Hauptordner laden.
-# Die erzeugten .html-Dateien stehen in .gitignore.
+# Die erzeugten .html- und .vorher.js-Dateien stehen in .gitignore.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -13,13 +13,15 @@ seite() {
   local nachher="  <script src=\"tests/$name.js\"></script>"
   # Sobald unten die Ergebnisleiste (OK/FEHLER/ABSTURZ) erscheint, dem Testserver „fertig“ melden: dann kommt das
   # Bildschirmfoto gleich und nicht erst nach der Höchstzeit
-  nachher+=$'\n'"  <script>new MutationObserver((_, b) => { const l = [...document.body.children].find((e) => e.style && e.style.bottom === '0px' && /OK|FEHLER|ABSTURZ/.test(e.textContent)); if (l) { b.disconnect(); setTimeout(() => fetch('/_fertig?id=$name'), 400); } }).observe(document.body, { childList: true });</script>"
+  nachher+=$'\n'"  <script src=\"tests/fertig-melden.js\"></script>"
   [ "$warten" != 0 ] && nachher+=$'\n'"  <iframe src=\"/_warten?ms=$warten&id=$name\" hidden></iframe>"
   VORHER="$vorher" NACHHER="$nachher" /usr/bin/python3 - "$name" <<'PY'
 import os, sys
 s = open('index.html', encoding='utf-8').read()
 s = s.replace('<head>', '<head>\n  <base href="/">', 1)
-s = s.replace('  <script src="ansagen.js"></script>', f"  <script>\n{os.environ['VORHER']}\n  </script>\n  <script src=\"ansagen.js\"></script>", 1)
+# Vorbereitung als eigene Datei (die Sicherheitsregel der App verbietet eingebettete Skripte – auch in Testseiten)
+open(f'tests/{sys.argv[1]}.vorher.js', 'w', encoding='utf-8').write(os.environ['VORHER'] + '\n')
+s = s.replace('  <script src="ansagen.js"></script>', f'  <script src="tests/{sys.argv[1]}.vorher.js"></script>\n  <script src="ansagen.js"></script>', 1)
 s = s.replace('  <script src="app.js"></script>', '  <script src="app.js"></script>\n' + os.environ['NACHHER'], 1)
 open(f'tests/{sys.argv[1]}.html', 'w', encoding='utf-8').write(s)
 PY
@@ -41,5 +43,6 @@ seite wieviele 45000
 seite mehr 60000
 seite korb 90000
 seite trommel 60000
+seite sicherheit 15000
 seite offline 20000
 echo "Testseiten erzeugt"
