@@ -21,3 +21,8 @@
 Eigene Datenbank `zahlennest`, Schlüssel nur mit `zn:`, gemeinsam nur die Pause (`nest:…`). Was Zahlennest aus Wortnest
 lesen darf: `../Kinder-Lernapp/docs/datenvertrag.md`. Der Offline-Speicher räumt nur eigene Caches (`zahlennest-…`) auf
 und füllt sich beim Start selbst nach (`cache-pruefen`).
+
+**Kinder aus Wortnest übernehmen** (Elternbereich, Knopf nur sichtbar, wenn es `lernapp` gibt): öffnet `lernapp` an
+genau einer Stelle ohne Versionsnummer (`wortnestKinderLesen`), bricht ein Anlegen ab und liest nur `kinder`.
+Übernommen werden Name (Text, ≤ 20), Tier (nur aus der eigenen Liste) und Foto (nur JPEG/PNG/WebP); das Kind bekommt
+eine eigene ID und merkt sich `wortnestId`, damit nichts doppelt kommt. Tests `uebernehmen` und `daten`.

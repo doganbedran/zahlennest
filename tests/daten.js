@@ -38,14 +38,20 @@
   const nest = Object.keys(localStorage).filter((k) => k.startsWith('nest:'));
   pruefe(nest.every((k) => ['nest:spielzeit', 'nest:pauseNach', 'nest:pauseAm'].includes(k)), `Unbekannte gemeinsame Schlüssel: ${nest}`);
 
-  // 4. Datenbanken: „zahlennest“ ja, „lernapp“ nie
+  // 4. Ohne Wortnest auf dem Gerät: kein Knopf „Aus Wortnest übernehmen“, Lesen legt nichts an
+  pruefe((await wortnestKinderLesen()).length === 0, 'Wortnest-Kinder ohne Wortnest');
+  await wortnestKnopfZeigen();
+  pruefe($('#btn-aus-wortnest').hidden, 'Knopf „Aus Wortnest übernehmen“ ohne Wortnest');
+  // Datenbanken: „zahlennest“ ja, „lernapp“ nie
   const dbs = (await indexedDB.databases()).map((d) => d.name);
   pruefe(dbs.includes('zahlennest') && !dbs.includes('lernapp'), `Datenbanken: ${dbs}`);
 
   // 5. Im Programmcode: localStorage nur über „speicher“, keine Wortnest-Datenbank
   const code = await (await fetch('app.js')).text();
   pruefe((code.match(/localStorage\.(setItem|removeItem|clear)/g) || []).length === 1, 'localStorage wird außerhalb von „speicher“ geschrieben');
-  pruefe(!/indexedDB\.(open|deleteDatabase)\(\s*['"]lernapp/.test(code), 'Code öffnet „lernapp“');
+  // „lernapp“ nur an einer Stelle und ohne Versionsnummer öffnen (Datenvertrag), nie löschen
+  pruefe((code.match(/indexedDB\.open\(\s*['"]lernapp/g) || []).length === 1 && code.includes("indexedDB.open('lernapp')")
+    && !/deleteDatabase/.test(code), 'Code öffnet „lernapp“ anders als im Datenvertrag');
   const sw = await (await fetch('sw.js')).text();
   pruefe(sw.includes("k.startsWith('zahlennest-')"), 'sw.js räumt fremde Caches mit ab');
 

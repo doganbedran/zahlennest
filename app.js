@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 13;
+const APP_VERSION = 14;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -2125,6 +2125,7 @@ function elternOeffnen() {
 
 function elternZeichnen() {
   kinderListeZeichnen();
+  wortnestKnopfZeigen();
   // Mit Kindern stellt man das Regal beim Kind ein
   $('#karte-regal').hidden = kinder.length > 0;
   regalWahlZeichnen($('#spiele-wahl'), regalVon(appWeitAus()), (neu) => {
@@ -2173,29 +2174,93 @@ function kinderListeZeichnen() {
   });
 }
 
-// Neues Kind: Name abfragen, anlegen, Formular öffnen; gibt das Kind zurück (oder null bei Abbruch)
-async function kindNeu() {
-  const name = (prompt('Wie heißt das Kind?') || '').trim();
-  if (!name) return null;
+// Kind anlegen und speichern (Name schon geprüft); extra = z. B. Tier und Foto aus Wortnest
+async function kindAnlegen(name, extra = {}) {
   const erstesKind = kinder.length === 0;
   const kind = {
-    id: `k-${Date.now().toString(36)}`,
+    id: `k-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
     name: name.slice(0, 20),
-    tier: TIERE.find((t) => !kinder.some((k) => k.tier === t)) || TIERE[0],
+    tier: extra.tier || TIERE.find((t) => !kinder.some((k) => k.tier === t)) || TIERE[0],
     // Das erste Kind übernimmt das bisherige Regal
     spieleAus: erstesKind ? appWeitAus() : START_AUS,
     // Spiel-Schalter: das erste Kind übernimmt die app-weiten
     ...Object.fromEntries(SPIEL_OPTIONEN.map((o) => [o, erstesKind ? !!speicher.lesen(o, optionStandard(o)) : optionStandard(o)])),
     erstellt: Date.now(),
   };
+  if (extra.foto) kind.foto = extra.foto;
+  if (extra.wortnestId) kind.wortnestId = extra.wortnestId;
   await datenbank.kindSpeichern(kind);
   speicherSchuetzen();
   await kinderLaden();
   if (!aktivesKind()) { zustand.kind = kind.id; speicher.schreiben('kind', kind.id); einstellungenLaden(); }
+  return kind;
+}
+
+// Neues Kind: Name abfragen, anlegen, Formular öffnen; gibt das Kind zurück (oder null bei Abbruch)
+async function kindNeu() {
+  const name = (prompt('Wie heißt das Kind?') || '').trim();
+  if (!name) return null;
+  const kind = await kindAnlegen(name);
   kindBearbeiten(kind.id);
   return kind;
 }
 $('#btn-kind-neu').addEventListener('click', kindNeu);
+
+// --- Aus Wortnest übernehmen (Regeln: ../Kinder-Lernapp/docs/datenvertrag.md, Vertrag Version 1) ---
+// Wortnests Datenbank „lernapp“ wird nur gelesen: ohne Versionsnummer geöffnet (löst nie ein Update aus); gibt es sie
+// auf dem Gerät nicht, wird das Anlegen abgebrochen. Übernommen werden nur Name, Tier und Foto – geprüft wie beim
+// Einspielen einer Sicherung (nur bekannte Felder, Name als Text, Foto nur als Bild).
+function wortnestKinderLesen() {
+  return new Promise((fertig) => {
+    let req;
+    try { req = indexedDB.open('lernapp'); } catch { fertig([]); return; }
+    req.onupgradeneeded = () => req.transaction.abort();   // Wortnest gibt es hier nicht: nichts anlegen
+    req.onerror = () => fertig([]);
+    req.onsuccess = () => {
+      const db = req.result;
+      db.onversionchange = () => db.close();   // Wortnest will sich aktualisieren: sofort Platz machen
+      try {
+        const tx = db.transaction('kinder', 'readonly');
+        const alle = tx.objectStore('kinder').getAll();
+        tx.oncomplete = () => { db.close(); fertig(alle.result || []); };
+        tx.onerror = () => { db.close(); fertig([]); };
+      } catch { db.close(); fertig([]); }
+    };
+  });
+}
+
+function wortnestKindPruefen(k) {
+  if (!k || typeof k.id !== 'string' || typeof k.name !== 'string') return null;
+  const name = k.name.trim().slice(0, 20).replace(/[\s-]+$/, '');
+  if (!name) return null;
+  return {
+    wortnestId: k.id.slice(0, 40),
+    name,
+    tier: TIERE.includes(k.tier) ? k.tier : null,
+    foto: k.foto instanceof Blob && /^image\/(jpeg|png|webp)$/.test(k.foto.type) ? k.foto : null,
+  };
+}
+
+// Knopf nur zeigen, wenn es auf dem Gerät Wortnest gibt (ältere Browser können das nicht prüfen: dann immer)
+async function wortnestKnopfZeigen() {
+  let da = true;
+  try { if (indexedDB.databases) da = (await indexedDB.databases()).some((d) => d.name === 'lernapp'); } catch { /* unbekannt */ }
+  $('#btn-aus-wortnest').hidden = !da;
+}
+
+async function ausWortnestUebernehmen() {
+  const schonDa = (k) => kinder.some((x) => x.wortnestId === k.wortnestId || x.name.toLowerCase() === k.name.toLowerCase());
+  const neu = (await wortnestKinderLesen()).map(wortnestKindPruefen).filter((k) => k && !schonDa(k));
+  if (!neu.length) {
+    alert('Aus Wortnest gibt es keine Kinder, die hier noch fehlen.');
+    return;
+  }
+  if (!confirm(`Aus Wortnest übernehmen: ${neu.map((k) => k.name).join(', ')}?\n\n`
+    + 'Übernommen werden Name, Tier und Foto. In Wortnest ändert sich nichts.')) return;
+  for (const k of neu) await kindAnlegen(k.name, k);
+  elternZeichnen();
+}
+$('#btn-aus-wortnest').addEventListener('click', ausWortnestUebernehmen);
 
 let kindInArbeit = null;
 

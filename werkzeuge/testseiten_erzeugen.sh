@@ -37,6 +37,7 @@ seite startseite 10000
 seite willkommen 6000
 seite info 5000
 seite kinder 10000
+seite uebernehmen 10000
 seite pause 8000
 seite daten 10000 "$WORTNEST"
 seite wieviele 45000
