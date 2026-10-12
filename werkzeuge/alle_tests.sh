@@ -38,6 +38,10 @@ LAEUFE=(
   "trommel-klein|tests/trommel.html|360,640|120"
   "trommel-tab|tests/trommel.html|1280,800|120"
   "trommel-quer|tests/trommel.html|860,412|120"
+  "hol|tests/hol.html|412,860|90"
+  "hol-klein|tests/hol.html|360,640|90"
+  "hol-tab|tests/hol.html|1280,800|90"
+  "hol-quer|tests/hol.html|860,412|90"
   "sicherheit|tests/sicherheit.html|412,860|60"
   "offline|tests/offline.html|412,860|60"
 )

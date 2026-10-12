@@ -160,6 +160,17 @@
     <div class="daumen-platz"><button id="btn-trommel-daumen" class="daumen-btn" aria-label="Gemacht" hidden>👍</button></div>
   </section>
 
+  <!-- Hol mir …: ganz echte Welt – „Hol mir zwei Löffel!“, das Kind holt, ein Erwachsener tippt 👍, dann wird gezählt -->
+  <section id="hol" class="screen">
+    <header class="topbar">
+      <button id="btn-hol-home" class="icon-btn" aria-label="Zurück">🏠</button>
+      <div id="hol-runden" class="runden-eier"></div>
+      <button id="btn-hol-laut" class="icon-btn" aria-label="Nochmal hören">🔊</button>
+    </header>
+    <div id="hol-feld" class="hol-feld"></div>
+    <div class="daumen-platz"><button id="btn-hol-daumen" class="daumen-btn" aria-label="Gemacht" hidden>👍</button></div>
+  </section>
+
   <!-- Pause: ruhiges Bild, nur 🏠 (gilt auch nach einer Pause in Wortnest) -->
   <section id="pause" class="screen">
     <div class="spiel-pause">
@@ -196,6 +207,18 @@
           „In den Korb“: Antippen statt Schieben (das Ding fliegt von selbst hinein)</label>
         <label class="umschalter spiel-option" data-spiel="trommel"><input type="checkbox" id="trommelBis5" data-option="trommelBis5">
           „Zahlen-Trommel“: Mengen 3 bis 5 (sonst 1 bis 3)</label>
+        <label class="umschalter spiel-option" data-spiel="holmir"><input type="checkbox" id="holBis5" data-option="holBis5">
+          „Hol mir …“: Mengen 3 bis 5 (sonst 1 bis 3)</label>
+        <p class="hinweis spiel-option" data-spiel="holmir">„Hol mir …“ – welche Dinge geholt werden: nur Ungefährliches und
+          Unzerbrechliches, vorher in Reichweite bereitlegen (kein Klettern); das Handy bleibt liegen. Bei kleinen
+          Geschwistern nur große Bausteine. 👍 erst tippen, wenn die Anzahl stimmt – sonst gemeinsam nachzählen:
+          „Wir brauchen noch einen“ oder „Einer darf zurück“, ohne zu korrigieren. Nach dem Zurückbringen nochmal 👍.</p>
+        <div class="hol-dinge spiel-option" data-spiel="holmir">
+          <label class="umschalter"><input type="checkbox" id="holLoeffel" data-option="holLoeffel"> 🥄 Löffel</label>
+          <label class="umschalter"><input type="checkbox" id="holBecher" data-option="holBecher"> 🥤 Becher (aus Plastik)</label>
+          <label class="umschalter"><input type="checkbox" id="holBaustein" data-option="holBaustein"> 🧱 Bausteine</label>
+          <label class="umschalter"><input type="checkbox" id="holKuscheltier" data-option="holKuscheltier"> 🧸 Kuscheltiere</label>
+        </div>
       </div>
 
       <div class="karte">
@@ -262,6 +285,18 @@
           wenn das Schieben noch schwerfällt.</p>
         <label class="umschalter spiel-option" data-spiel="trommel"><input type="checkbox" id="kind-trommelBis5" data-option="trommelBis5">
           „Zahlen-Trommel“: Mengen 3 bis 5 (sonst 1 bis 3)</label>
+        <label class="umschalter spiel-option" data-spiel="holmir"><input type="checkbox" id="kind-holBis5" data-option="holBis5">
+          „Hol mir …“: Mengen 3 bis 5 (sonst 1 bis 3)</label>
+        <p class="hinweis spiel-option" data-spiel="holmir">„Hol mir …“ – welche Dinge geholt werden: nur Ungefährliches und
+          Unzerbrechliches, vorher in Reichweite bereitlegen (kein Klettern); das Handy bleibt liegen. Bei kleinen
+          Geschwistern nur große Bausteine. 👍 erst tippen, wenn die Anzahl stimmt – sonst gemeinsam nachzählen:
+          „Wir brauchen noch einen“ oder „Einer darf zurück“, ohne zu korrigieren. Nach dem Zurückbringen nochmal 👍.</p>
+        <div class="hol-dinge spiel-option" data-spiel="holmir">
+          <label class="umschalter"><input type="checkbox" id="kind-holLoeffel" data-option="holLoeffel"> 🥄 Löffel</label>
+          <label class="umschalter"><input type="checkbox" id="kind-holBecher" data-option="holBecher"> 🥤 Becher (aus Plastik)</label>
+          <label class="umschalter"><input type="checkbox" id="kind-holBaustein" data-option="holBaustein"> 🧱 Bausteine</label>
+          <label class="umschalter"><input type="checkbox" id="kind-holKuscheltier" data-option="holKuscheltier"> 🧸 Kuscheltiere</label>
+        </div>
       </div>
       <div class="karte">
         <div class="knopf-reihe">

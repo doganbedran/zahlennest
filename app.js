@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 12;
+const APP_VERSION = 13;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -145,11 +145,16 @@ const appWeitAus = () => speicher.lesen('spieleAus', START_AUS);
 function einstellungenLaden() {
   const k = aktivesKind();
   zustand.spiele = regalVon(k ? (k.spieleAus || START_AUS) : appWeitAus());
-  SPIEL_OPTIONEN.forEach((o) => { zustand[o] = k ? !!k[o] : !!speicher.lesen(o, false); });
+  SPIEL_OPTIONEN.forEach((o) => { zustand[o] = k ? !!(k[o] ?? optionStandard(o)) : !!speicher.lesen(o, optionStandard(o)); });
 }
 
 // Schalter einzelner Spiele (je Kind, ohne Kinder app-weit): Name = Feld beim Kind, Schlüssel zn:<Name>, data-option
-const SPIEL_OPTIONEN = ['weniger', 'korbBis5', 'korbTippen', 'trommelBis5'];
+const SPIEL_OPTIONEN = ['weniger', 'korbBis5', 'korbTippen', 'trommelBis5', 'holBis5',
+  'holLoeffel', 'holBecher', 'holBaustein', 'holKuscheltier'];
+// Standard „an“ (sonst aus): die Dinge bei „Hol mir …“
+const SPIEL_STANDARD = { holLoeffel: true, holBecher: true, holBaustein: true, holKuscheltier: true };
+const optionStandard = (o) => !!SPIEL_STANDARD[o];
+const HOL_DINGE_OPTIONEN = ['holLoeffel', 'holBecher', 'holBaustein', 'holKuscheltier'];
 
 // Einstellungen einzelner Spiele nur zeigen, wenn es das Spiel schon gibt
 function spielOptionenZeigen() {
@@ -356,6 +361,7 @@ window.addEventListener('popstate', () => {
   mehrStoppen();
   korbStoppen();
   trommelStoppen();
+  holStoppen();
   const ziel = (history.state && history.state.screen) || 'home';
   // Infoseite von der Begrüßung aus geöffnet: dorthin zurück
   if (ziel === 'home' && $('#info').classList.contains('active') && infoVonBegruessung) {
@@ -502,12 +508,12 @@ function spielBausteine(id, z) {
 // „Mach es in echt, mit deinen Händen!“); 3. der Erwachsene tippt 👍 (klein, unten rechts), dann zeigt das Kind auf
 // die echten Dinge, und die App zählt mit (die Karte leuchtet). Keine Zeitgrenze: nach einer Weile kommt der Auftrag
 // einmal nochmal, dann wartet die App einfach. z.inEcht = in dieser Phase; z.echtSagen = Auftrag nochmal (🔊).
-async function inEcht({ z, nr, aktuell, ansage, buehne, knopf, karteHtml, sagen, zeit }) {
+async function inEcht({ z, nr, aktuell, ansage, buehne, knopf, karteHtml, sagen, zeit, einleitung = true, karteKlasse = '' }) {
   z.inEcht = true;
   z.echtSagen = sagen;
   z.umgelenkt = false;
   buehne.closest('.screen').classList.add('ruhig');
-  buehne.innerHTML = `<div class="in-echt"><div class="in-echt-karte">${karteHtml}</div>`
+  buehne.innerHTML = `<div class="in-echt"><div class="in-echt-karte ${karteKlasse}">${karteHtml}</div>`
     + '<div class="in-echt-haende" aria-hidden="true">👐</div></div>';
   const karte = buehne.querySelector('.in-echt-karte');
   buehne.querySelector('.in-echt').addEventListener('pointerdown', async () => {
@@ -517,7 +523,7 @@ async function inEcht({ z, nr, aktuell, ansage, buehne, knopf, karteHtml, sagen,
     animieren(karte, 'wackelt');
     if ((await ansage(nr, 'echt-umlenken')) && !z.fertig) z.gesperrt = false;
   });
-  if (!(await ansage(nr, 'jetzt-in-echt'))) return;
+  if (einleitung && !(await ansage(nr, 'jetzt-in-echt'))) return;
   if (!(await sagen(nr))) return;   // „Jetzt in echt! … Leg drei Bausteine in einen Becher!“
   if (z.fertig) return;
   z.gesperrt = false;
@@ -1944,6 +1950,158 @@ $('#btn-trommel-laut').addEventListener('click', () => {
   trAnsage(tr.nummer, `trommel-hau-${tr.n}`);
 });
 
+// ---------- Hol mir …: echte Dinge holen und zusammen zählen ----------
+
+// Ganz echte Welt: „Hol mir zwei Löffel!“ – der Bildschirm ist sofort ruhig (Karte: Punkte + Ding, 👐; die Punkte
+// leuchten einmal still nacheinander). Das Kind holt die Dinge, ein Erwachsener tippt 👍: „Leg sie hin!“ – „Zeig auf
+// jeden Löffel!“ – die App zählt langsam mit (Karte leuchtet) – „Danke! Bring sie wieder zurück.“ 2 Runden. Keine
+// Zeitgrenze; falsche Anzahl ist kein Fehler (das gemeinsame Zählen zeigt es). Je Kind: welche Dinge, Mengen 3 bis 5.
+const HOL_RUNDEN = 2;
+// 👍 erst nach 8 s (holen dauert ohnehin; sonst tippt ein Kind ihn, bevor es etwas geholt hat)
+const HOL_ZEIT = { daumen: 8000, auftragNochmal: 14000, hinlegen: 3000, hinlegenViele: 4000, selbstZaehlen: 1200, rundenPause: 800 };
+// Dinge: deutliche Zeichnungen (ein gerader Löffel sah aus wie ein Lutscher, ein Becher ohne Henkel wie ein Eimer);
+// fw = Fürwort für „Leg ihn/es hin!“
+const HOL_DINGE = {
+  loeffel: { option: 'holLoeffel', fw: 'ihn', svg: '<svg viewBox="0 0 100 100" aria-hidden="true"><g transform="rotate(35 50 50)">'
+    + '<path d="M45 52 L43 90 Q50 96 57 90 L55 52 Z" fill="#d9dde3" stroke="#4a3f35" stroke-width="4" stroke-linejoin="round"/>'
+    + '<ellipse cx="50" cy="30" rx="16" ry="22" fill="#d9dde3" stroke="#4a3f35" stroke-width="4"/>'
+    + '<ellipse cx="50" cy="31" rx="9" ry="14" fill="#b7bdc6"/><ellipse cx="45" cy="24" rx="3" ry="6" fill="#fff"/></g></svg>' },
+  becher: { option: 'holBecher', fw: 'ihn', svg: '<svg viewBox="0 0 100 100" aria-hidden="true">'
+    + '<path d="M70 38 Q90 38 88 56 Q86 72 66 70" fill="none" stroke="#4a3f35" stroke-width="10" stroke-linecap="round"/>'
+    + '<path d="M70 38 Q90 38 88 56 Q86 72 66 70" fill="none" stroke="#7fb3d5" stroke-width="4" stroke-linecap="round"/>'
+    + '<path d="M20 24 L26 84 Q46 92 66 84 L72 24 Z" fill="#7fb3d5" stroke="#4a3f35" stroke-width="4" stroke-linejoin="round"/>'
+    + '<ellipse cx="46" cy="24" rx="26" ry="7" fill="#3f6f93" stroke="#4a3f35" stroke-width="4"/></svg>' },
+  baustein: { option: 'holBaustein', fw: 'ihn', svg: KORB_WELT[0] },
+  kuscheltier: { option: 'holKuscheltier', fw: 'es', svg: '<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="#c98f4e" stroke="#4a3f35" stroke-width="4">'
+    + '<circle cx="30" cy="22" r="10"/><circle cx="70" cy="22" r="10"/><ellipse cx="50" cy="74" rx="24" ry="20"/><circle cx="50" cy="40" r="22"/></g>'
+    + '<ellipse cx="50" cy="47" rx="9" ry="7" fill="#f0d2a8"/><circle cx="42" cy="35" r="3" fill="#4a3f35"/><circle cx="58" cy="35" r="3" fill="#4a3f35"/>'
+    + '<circle cx="50" cy="45" r="3" fill="#4a3f35"/></svg>' },
+};
+const hl = { runde: 0, runden: [], gesperrt: true, timer: null, nummer: 0, fertig: false, inEcht: false, wartetZurueck: false };
+const hlBausteine = spielBausteine('hol', hl);
+const { aktuell: hlAktuell, ansage: hlAnsage, zaehlen: hlZaehlen } = hlBausteine;
+
+function holStoppen() {
+  hlBausteine.stoppen();
+  hl.wartetZurueck = false;
+  bildschirmWachFrei();
+}
+
+// Bildschirm wach halten, solange das Kind unterwegs ist (sonst wird er dunkel, bevor es zurück ist)
+let bildschirmWach = null;
+async function bildschirmWachHalten() {
+  try { if (!bildschirmWach && navigator.wakeLock) bildschirmWach = await navigator.wakeLock.request('screen'); } catch { /* egal */ }
+}
+function bildschirmWachFrei() {
+  try { if (bildschirmWach) bildschirmWach.release(); } catch { /* egal */ }
+  bildschirmWach = null;
+}
+
+// 2 Runden: verschiedene Dinge (wenn mehrere an sind), nie zweimal dieselbe Menge; mit „bis 5“: 3–5
+function holRundenPlanen() {
+  const dinge = Object.keys(HOL_DINGE).filter((d) => zustand[HOL_DINGE[d].option]);
+  const auswahl = dinge.length ? dinge : Object.keys(HOL_DINGE);
+  const mengen = zustand.holBis5 ? [3, 4, 5] : [1, 2, 3];
+  const plan = [];
+  const erste = zustand.holBis5 ? 3 : 2;   // leicht beginnen
+  const ersteDinge = mischen(auswahl);
+  for (let i = 0; i < HOL_RUNDEN; i++) {
+    const n = i === 0 ? erste : zufall(mengen.filter((m) => m !== plan[i - 1].n));
+    plan.push({ n, ding: ersteDinge[i % ersteDinge.length] });
+  }
+  return plan;
+}
+
+function hlRundenZeichnen() {
+  $('#hol-runden').innerHTML = `<span class="gruppe">${
+    Array.from({ length: HOL_RUNDEN }, (_, i) => `<span class="${i < hl.runde ? 'voll' : ''}"></span>`).join('')}</span>`;
+}
+
+async function holNeueRunde() {
+  holStoppen();
+  const nr = hl.nummer;
+  hl.fertig = false;
+  $('#btn-hol-daumen').hidden = true;
+  const { n, ding } = hl.runden[hl.runde];
+  const auftrag = (nr2) => hlAnsage(nr2, `hol-${n}-${ding}`);
+  const bild = `<span class="karte-ding">${HOL_DINGE[ding].svg}</span>`;
+  // Bei 1–3: die Dinge selbst, so viele wie gesucht (konkret vor abstrakt); bei 4–5: Punkte + ein Ding
+  const karteHtml = n <= 3 ? `<span class="karte-dinge">${bild.repeat(n)}</span>` : korbKarteSvg(n) + bild;
+  bildschirmWachHalten();
+  inEcht({ z: hl, nr, aktuell: hlAktuell, ansage: hlAnsage, buehne: $('#hol-feld'), knopf: $('#btn-hol-daumen'),
+    karteHtml, sagen: auftrag, zeit: HOL_ZEIT, einleitung: false, karteKlasse: 'gross' });
+  // Die Dinge (bzw. Punkte) leuchten einmal still nacheinander – zeigt „so viele“, ohne vorzuzählen
+  const teile = [...document.querySelectorAll(n <= 3 ? '#hol-feld .karte-dinge .karte-ding' : '#hol-feld .karte-punkt')];
+  teile.forEach((p, i) => setTimeout(() => hlAktuell(nr) && !hl.fertig && p.classList.add('leuchtet'), 400 + i * 450));
+  setTimeout(() => hlAktuell(nr) && !hl.fertig && teile.forEach((p) => p.classList.remove('leuchtet')), 400 + n * 450 + 900);
+}
+
+// Nach 👍: „Leg sie hin!“ – „Zeig auf jeden Löffel!“ – kurz Zeit zum Selbstzählen – die App zählt langsam mit (auf dem
+// Bildschirm leuchtet dabei nichts: der Blick soll bei den echten Dingen bleiben) – „Danke! Bring sie wieder zurück.“
+// Dann wartet die App auf ein zweites 👍 (zurückgebracht), erst dann kommt der nächste Auftrag bzw. das Ende –
+// so ist das Aufräumen ein eigener Schritt, und das Kind verpasst unterwegs nichts.
+async function holErledigt(nr) {
+  const karte = inEchtBestaetigt(hl, $('#btn-hol-daumen'));
+  if (!karte) return;
+  const { n, ding } = hl.runden[hl.runde];
+  const fw = HOL_DINGE[ding].fw;
+  karte.querySelectorAll('.leuchtet').forEach((p) => p.classList.remove('leuchtet'));
+  if (!(await hlAnsage(nr, n === 1 ? `hol-leg-hin-1-${fw}` : 'hol-leg-hin'))) return;
+  await warten(n > 3 ? HOL_ZEIT.hinlegenViele : HOL_ZEIT.hinlegen);
+  if (!(await hlAnsage(nr, n === 1 ? `hol-zeig-1-${ding}` : `hol-zeig-jeden-${ding}`))) return;
+  await warten(HOL_ZEIT.selbstZaehlen);
+  const takte = Array.from({ length: n }, () => document.createElement('span'));
+  if (!(await hlZaehlen(nr, `hol-fertig-${n}-${ding}`, takte))) return;
+  glockenspiel();
+  await warten(400);
+  if (!(await hlAnsage(nr, n === 1 ? `hol-zurueck-1-${fw}` : 'hol-zurueck'))) return;
+  hl.wartetZurueck = true;
+  $('#btn-hol-daumen').hidden = false;
+}
+
+// Zweites 👍: zurückgebracht → nächste Runde bzw. Ende
+async function holZurueckGebracht(nr) {
+  if (!hl.wartetZurueck) return;
+  hl.wartetZurueck = false;
+  $('#btn-hol-daumen').hidden = true;
+  hl.runde++;
+  hlRundenZeichnen();
+  await warten(HOL_ZEIT.rundenPause);
+  if (!hlAktuell(nr)) return;
+  if (hl.runde < HOL_RUNDEN) { holNeueRunde(); return; }
+  bildschirmWachFrei();
+  if (!(await hlAnsage(nr, 'ende-hol'))) return;
+  spielEnde('hol', holNeu);
+}
+
+$('#btn-hol-daumen').addEventListener('click', () => {
+  audio();
+  if (hl.wartetZurueck) holZurueckGebracht(hl.nummer);
+  else if (hl.inEcht) holErledigt(hl.nummer);
+});
+
+function holNeu() {
+  holStoppen();
+  Object.assign(hl, { runde: 0, runden: holRundenPlanen(), fertig: false, inEcht: false });
+  hlRundenZeichnen();
+  holNeueRunde();
+}
+
+function holStarten() {
+  spielEndeWeg('hol');
+  zeigen('hol');
+  holNeu();
+}
+SPIELE.holmir = holStarten;
+
+$('#btn-hol-home').addEventListener('click', () => { holStoppen(); wiedergabeStoppen(); zurStartseite(); });
+$('#btn-hol-laut').addEventListener('click', () => {
+  const ende = $('#hol .spiel-ende');
+  if ((ende && !ende.hidden) || !hl.inEcht || hl.wartetZurueck) return;
+  audio();
+  inEchtNochmal(hl);
+});
+
 // ---------- Elternbereich (2 Sekunden gedrückt halten) ----------
 
 (() => {
@@ -1976,14 +2134,21 @@ function elternZeichnen() {
   });
   pauseWahlZeichnen();
   spielOptionenZeigen();
-  document.querySelectorAll('#karte-regal [data-option]').forEach((box) => { box.checked = !!speicher.lesen(box.dataset.option, false); });
+  document.querySelectorAll('#karte-regal [data-option]').forEach((box) => {
+    box.checked = !!speicher.lesen(box.dataset.option, optionStandard(box.dataset.option));
+  });
 }
 
+// Bei „Hol mir …“ bleibt mindestens ein Ding an (sonst gäbe es nichts zu holen)
+const letztesDingAus = (box) => HOL_DINGE_OPTIONEN.includes(box.dataset.option) && !box.checked
+  && ![...box.closest('.hol-dinge').querySelectorAll('input')].some((b) => b.checked);
 document.querySelectorAll('#karte-regal [data-option]').forEach((box) => box.addEventListener('change', () => {
+  if (letztesDingAus(box)) { box.checked = true; return; }
   speicher.schreiben(box.dataset.option, box.checked);
   einstellungenLaden();
 }));
 document.querySelectorAll('#kind [data-option]').forEach((box) => box.addEventListener('change', () => {
+  if (letztesDingAus(box)) { box.checked = true; return; }
   kindAendern((k) => { k[box.dataset.option] = box.checked; });
 }));
 
@@ -2020,7 +2185,7 @@ async function kindNeu() {
     // Das erste Kind übernimmt das bisherige Regal
     spieleAus: erstesKind ? appWeitAus() : START_AUS,
     // Spiel-Schalter: das erste Kind übernimmt die app-weiten
-    ...Object.fromEntries(SPIEL_OPTIONEN.map((o) => [o, erstesKind ? !!speicher.lesen(o, false) : false])),
+    ...Object.fromEntries(SPIEL_OPTIONEN.map((o) => [o, erstesKind ? !!speicher.lesen(o, optionStandard(o)) : optionStandard(o)])),
     erstellt: Date.now(),
   };
   await datenbank.kindSpeichern(kind);
@@ -2069,7 +2234,7 @@ function kindFormularZeichnen() {
   $('#btn-kind-foto-weg').hidden = !k.foto;
   regalWahlZeichnen($('#kind-spiele'), regalVon(k.spieleAus || START_AUS), (neu) => kindAendern((kk) => { kk.spieleAus = ausVon(neu); }));
   spielOptionenZeigen();
-  document.querySelectorAll('#kind [data-option]').forEach((box) => { box.checked = !!k[box.dataset.option]; });
+  document.querySelectorAll('#kind [data-option]').forEach((box) => { box.checked = !!(k[box.dataset.option] ?? optionStandard(box.dataset.option)); });
 }
 
 $('#kind-name').addEventListener('change', (e) => {

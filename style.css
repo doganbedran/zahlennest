@@ -423,3 +423,21 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 /* wartet still auf das Kind: sanft „atmen“, damit sie nicht kaputt wirkt */
 .trommel-btn.wartet { animation: warten-puls 2.4s ease-in-out infinite; }
 .trommel-btn.schlaeft { opacity: 0.35; transition: opacity 1.2s; }
+
+/* ---------- Hol mir … ---------- */
+.hol-feld { flex: 1; display: flex; min-height: 0; }
+/* Auftragskarte größer als beim Schluss der anderen Spiele (sie IST hier der Auftrag), weiter flach und ruhig */
+.in-echt-karte.gross { padding: 16px 22px; gap: 20px; }
+.in-echt-karte.gross svg { height: min(120px, 16dvh); }
+.in-echt-karte .karte-ding { display: inline-block; height: min(76px, 11dvh); aspect-ratio: 1; }
+.in-echt-karte.gross .karte-ding { height: min(120px, 16dvh); }
+.in-echt-karte .karte-ding svg { width: 100%; height: 100%; }
+.hol-dinge { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); margin-bottom: 8px; }
+/* Bei 1–3: die Dinge selbst, gleich groß in gleichem Abstand; leuchten einmal still nacheinander */
+.in-echt-karte .karte-dinge { display: inline-flex; gap: 14px; }
+.in-echt-karte .karte-ding { border-radius: 14px; }
+.in-echt-karte .karte-ding.leuchtet { box-shadow: 0 0 0 4px #f5c518; }
+.in-echt-karte.gross .karte-dinge .karte-ding { height: min(96px, 13dvh); }
+/* Punkte (bei 4–5) gefüllt wie ein Würfelbild: sie zeigen die gesuchte Menge, nicht „was fehlt noch“ */
+.in-echt-karte.gross .karte-punkt { fill: #4a3f35; }
+.in-echt-karte.gross .karte-punkt.leuchtet { fill: #f5c518; stroke: #b07800; }

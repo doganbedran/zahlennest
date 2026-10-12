@@ -30,6 +30,10 @@ hinzufügen“. Elternbereich: ⚙️ oben rechts 2 Sekunden halten. Fragen und 
   die Trommel und die App sagt „Dreimal!“. Doppeltipps zählen als ein Schlag, kein Takt. Bei einer Pause bleiben die
   Punkte: „Hau weiter!“, dann trommelt die App den Rest mit. Je Kind: Mengen 3 bis 5. Zum Schluss: „Klatsch dreimal
   in die Hände!“
+- 🥄 **Hol mir …** (3–4) – ganz in der echten Welt: „Hol mir zwei Löffel!“ (Karte mit Punkten und Ding). Das Kind holt
+  die Dinge, ein Erwachsener tippt 👍: „Leg sie hin! … Zeig auf jeden Löffel!“, die App zählt langsam mit, dann
+  „Danke! Bring sie wieder zurück.“ 2 Runden, keine Zeitgrenze. Je Kind: welche Dinge (Löffel, Becher aus Plastik,
+  Bausteine, Kuscheltiere – nur Ungefährliches) und Mengen 3 bis 5.
 
 Alle Spiele enden gleich: Das Spiel macht den Auftrag einmal vor, dann „Jetzt in echt!“ – der Bildschirm wird ruhig
 (👐, kleine Erinnerungskarte), das Kind macht es mit echten Dingen; ein Erwachsener tippt 👍, dann zählt die App mit.

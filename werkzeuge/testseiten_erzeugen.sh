@@ -43,6 +43,7 @@ seite wieviele 45000
 seite mehr 60000
 seite korb 90000
 seite trommel 60000
+seite hol 45000
 seite sicherheit 15000
 seite offline 20000
 echo "Testseiten erzeugt"

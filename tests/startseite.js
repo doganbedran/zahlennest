@@ -33,7 +33,8 @@
   });
   // Antippen startet das Spiel (vorgetäuscht, falls noch nicht gebaut)
   $('#home .spiel-btn[data-spiel="holmir"]').click();
-  pruefe(echteSpiele.includes('holmir') || gestartet.includes('holmir'), 'Kachel startet kein Spiel');
+  pruefe(echteSpiele.includes('holmir') ? aktiv('hol') : gestartet.includes('holmir'), 'Kachel startet kein Spiel');
+  if (echteSpiele.includes('holmir')) { holStoppen(); zeigen('home', false); }
 
   // 4. Elternbereich: kurz tippen öffnet nicht, 2 Sekunden halten schon
   const knopf = $('#btn-eltern');
