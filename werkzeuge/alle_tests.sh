@@ -45,6 +45,7 @@ LAEUFE=(
   "hol-klein|tests/hol.html|360,640|90"
   "hol-tab|tests/hol.html|1280,800|90"
   "hol-quer|tests/hol.html|860,412|90"
+  "holeigen|tests/holeigen.html|412,860|60"
   "sicherheit|tests/sicherheit.html|412,860|60"
   "offline|tests/offline.html|412,860|60"
 )

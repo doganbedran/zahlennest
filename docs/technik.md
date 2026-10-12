@@ -34,3 +34,7 @@ Fotos und Aufnahmen im Store `medien` mit Schlüssel `<profil>|<platz>|<art>` wi
 `audio/ansage-<name>.wav`. Studio wie Wortnest (gedrückt halten, 22 050 Hz, Stille abschneiden, angleichen);
 Mikrofon nur im Studio, beim Verlassen/im Hintergrund zu. Aus Wortnest kommen Menschen mit Name/Foto und die
 Hauptstimme der Kinder, keine Aufnahmen (andere Sätze). Test `stimme`.
+
+**Eigene Dinge bei „Hol mir …“** (Elternbereich, bis 6, für alle Kinder): Liste `zn:eigeneDinge` (`[{ id 'd-…', name }]`),
+Foto in `medien` unter `dinge|<id>|bild`. Im Rundenplan als `eigen:<id>`; die Stimme nennt keinen Namen
+(`hol-eigen-n` „Hol mir zwei davon!“, `hol-zeig-jedes`/`hol-zeig-1-eigen`, Zählen mit `zaehlen-n`). Test `holeigen`.

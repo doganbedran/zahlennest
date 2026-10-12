@@ -171,5 +171,13 @@ const ANSAGEN = {
   'hol-zeig-1-becher': ['Zeig auf den Becher!', 'Hol mir'],
   'hol-zeig-1-baustein': ['Zeig auf den Baustein!', 'Hol mir'],
   'hol-zeig-1-kuscheltier': ['Zeig auf das Kuscheltier!', 'Hol mir'],
+  // Eigene Dinge (Foto der Eltern): die Stimme kennt den Namen nicht – „davon“ zeigt aufs Foto; gezählt wird mit zaehlen-n
+  'hol-eigen-1': ['Hol mir eins davon!', 'Hol mir'],
+  'hol-eigen-2': ['Hol mir zwei davon!', 'Hol mir'],
+  'hol-eigen-3': ['Hol mir drei davon!', 'Hol mir'],
+  'hol-eigen-4': ['Hol mir vier davon!', 'Hol mir'],
+  'hol-eigen-5': ['Hol mir fünf davon!', 'Hol mir'],
+  'hol-zeig-1-eigen': ['Zeig drauf!', 'Hol mir'],
+  'hol-zeig-jedes': ['Zeig auf jedes!', 'Hol mir'],
   'ende-hol': ['Du hast echte Dinge gezählt!', 'Hol mir'],
 };

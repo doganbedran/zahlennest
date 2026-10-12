@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 15;
+const APP_VERSION = 16;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -2013,6 +2013,27 @@ const HOL_DINGE = {
     + '<ellipse cx="50" cy="47" rx="9" ry="7" fill="#f0d2a8"/><circle cx="42" cy="35" r="3" fill="#4a3f35"/><circle cx="58" cy="35" r="3" fill="#4a3f35"/>'
     + '<circle cx="50" cy="45" r="3" fill="#4a3f35"/></svg>' },
 };
+// Eigene Dinge (Foto, gelten für alle Kinder): Liste zn:eigeneDinge [{ id 'd-…', name }], Foto in medien
+// „dinge|<id>|bild“. Die Stimme kennt den Namen nicht: „Hol mir zwei davon!“ – die Karte zeigt das Foto.
+const EIGENE_DINGE_MAX = 6;
+let eigeneDinge = [];   // [{ id, name, url }]
+async function eigeneDingeLaden() {
+  eigeneDinge.forEach((d) => URL.revokeObjectURL(d.url));
+  const liste = speicher.lesen('eigeneDinge', []);
+  const neu = [];
+  for (const d of Array.isArray(liste) ? liste : []) {
+    if (!d || typeof d.id !== 'string') continue;
+    const foto = await datenbank.medium('dinge', d.id, 'bild');
+    if (foto instanceof Blob) neu.push({ id: d.id, name: String(d.name || '').slice(0, 30), url: URL.createObjectURL(foto) });
+  }
+  eigeneDinge = neu;
+}
+const eigenesDing = (ding) => eigeneDinge.find((d) => `eigen:${d.id}` === ding) || null;
+function holDingBild(ding) {
+  const e = eigenesDing(ding);
+  return `<span class="karte-ding${e ? ' eigen' : ''}">${e ? `<img src="${e.url}" alt="">` : HOL_DINGE[ding].svg}</span>`;
+}
+
 const hl = { runde: 0, runden: [], gesperrt: true, timer: null, nummer: 0, fertig: false, inEcht: false, wartetZurueck: false };
 const hlBausteine = spielBausteine('hol', hl);
 const { aktuell: hlAktuell, ansage: hlAnsage, zaehlen: hlZaehlen } = hlBausteine;
@@ -2036,7 +2057,7 @@ function bildschirmWachFrei() {
 // 2 Runden: verschiedene Dinge (wenn mehrere an sind), nie zweimal dieselbe Menge; mit „bis 5“: 3–5
 function holRundenPlanen() {
   const dinge = Object.keys(HOL_DINGE).filter((d) => zustand[HOL_DINGE[d].option]);
-  const auswahl = dinge.length ? dinge : Object.keys(HOL_DINGE);
+  const auswahl = [...(dinge.length ? dinge : Object.keys(HOL_DINGE)), ...eigeneDinge.map((d) => `eigen:${d.id}`)];
   const mengen = zustand.holBis5 ? [3, 4, 5] : [1, 2, 3];
   const plan = [];
   const erste = zustand.holBis5 ? 3 : 2;   // leicht beginnen
@@ -2059,8 +2080,8 @@ async function holNeueRunde() {
   hl.fertig = false;
   $('#btn-hol-daumen').hidden = true;
   const { n, ding } = hl.runden[hl.runde];
-  const auftrag = (nr2) => hlAnsage(nr2, `hol-${n}-${ding}`);
-  const bild = `<span class="karte-ding">${HOL_DINGE[ding].svg}</span>`;
+  const auftrag = (nr2) => hlAnsage(nr2, eigenesDing(ding) ? `hol-eigen-${n}` : `hol-${n}-${ding}`);
+  const bild = holDingBild(ding);
   // Bei 1–3: die Dinge selbst, so viele wie gesucht (konkret vor abstrakt); bei 4–5: Punkte + ein Ding
   const karteHtml = n <= 3 ? `<span class="karte-dinge">${bild.repeat(n)}</span>` : korbKarteSvg(n) + bild;
   bildschirmWachHalten();
@@ -2080,14 +2101,16 @@ async function holErledigt(nr) {
   const karte = inEchtBestaetigt(hl, $('#btn-hol-daumen'));
   if (!karte) return;
   const { n, ding } = hl.runden[hl.runde];
-  const fw = HOL_DINGE[ding].fw;
+  const eigen = !!eigenesDing(ding);
+  const fw = eigen ? 'es' : HOL_DINGE[ding].fw;   // eigenes Ding: „Hol mir eins davon!“ – „Leg es hin!“
   karte.querySelectorAll('.leuchtet').forEach((p) => p.classList.remove('leuchtet'));
   if (!(await hlAnsage(nr, n === 1 ? `hol-leg-hin-1-${fw}` : 'hol-leg-hin'))) return;
   await warten(n > 3 ? HOL_ZEIT.hinlegenViele : HOL_ZEIT.hinlegen);
-  if (!(await hlAnsage(nr, n === 1 ? `hol-zeig-1-${ding}` : `hol-zeig-jeden-${ding}`))) return;
+  const zeig = eigen ? (n === 1 ? 'hol-zeig-1-eigen' : 'hol-zeig-jedes') : (n === 1 ? `hol-zeig-1-${ding}` : `hol-zeig-jeden-${ding}`);
+  if (!(await hlAnsage(nr, zeig))) return;
   await warten(HOL_ZEIT.selbstZaehlen);
   const takte = Array.from({ length: n }, () => document.createElement('span'));
-  if (!(await hlZaehlen(nr, `hol-fertig-${n}-${ding}`, takte))) return;
+  if (!(await hlZaehlen(nr, eigen ? `zaehlen-${n}` : `hol-fertig-${n}-${ding}`, takte))) return;
   glockenspiel();
   await warten(400);
   if (!(await hlAnsage(nr, n === 1 ? `hol-zurueck-1-${fw}` : 'hol-zurueck'))) return;
@@ -2161,6 +2184,7 @@ function elternOeffnen() {
 
 function elternZeichnen() {
   kinderListeZeichnen();
+  eigeneDingeZeichnen();
   menschenListeZeichnen();
   wortnestKnopfZeigen();
   // Mit Kindern stellt man das Regal beim Kind ein
@@ -2175,6 +2199,43 @@ function elternZeichnen() {
   document.querySelectorAll('#karte-regal [data-option]').forEach((box) => {
     box.checked = !!speicher.lesen(box.dataset.option, optionStandard(box.dataset.option));
   });
+}
+
+// --- Eigene Dinge für „Hol mir …“ ---
+
+function eigeneDingeZeichnen() {
+  const box = $('#eigene-dinge');
+  box.innerHTML = '';
+  eigeneDinge.forEach((d) => {
+    const zeile = document.createElement('div');
+    zeile.className = 'ding-zeile';
+    zeile.innerHTML = `<img src="${d.url}" alt=""><span>${htmlText(d.name)}</span>`
+      + '<button class="icon-btn" aria-label="Löschen">🗑️</button>';
+    zeile.querySelector('button').addEventListener('click', () => eigenesDingLoeschen(d));
+    box.appendChild(zeile);
+  });
+  $('#btn-ding-neu').hidden = eigeneDinge.length >= EIGENE_DINGE_MAX;
+}
+
+function eigenesDingNeu() {
+  fotoWaehlen(async (blob) => {
+    const name = (prompt('Wie heißt das Ding? (nur für Sie, z. B. „Ente“)') || '').trim().slice(0, 30) || 'Eigenes Ding';
+    const id = `d-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    if (!(await datenbank.medienSetzen('dinge', id, 'bild', blob))) { alert('Speichern ging nicht – vielleicht ist der Speicher voll.'); return; }
+    speicher.schreiben('eigeneDinge', [...speicher.lesen('eigeneDinge', []), { id, name }]);
+    speicherSchuetzen();
+    await eigeneDingeLaden();
+    eigeneDingeZeichnen();
+  });
+}
+$('#btn-ding-neu').addEventListener('click', eigenesDingNeu);
+
+async function eigenesDingLoeschen(d) {
+  if (!confirm(`„${d.name}“ löschen?`)) return;
+  await datenbank.medienEntfernen('dinge', d.id, 'bild');
+  speicher.schreiben('eigeneDinge', speicher.lesen('eigeneDinge', []).filter((x) => x && x.id !== d.id));
+  await eigeneDingeLaden();
+  eigeneDingeZeichnen();
 }
 
 // Bei „Hol mir …“ bleibt mindestens ein Ding an (sonst gäbe es nichts zu holen)
@@ -2922,6 +2983,7 @@ $('#btn-willkommen-kind').addEventListener('click', async () => {
 const startFertig = (async () => {
   await kinderLaden();
   await menschenLaden();
+  await eigeneDingeLaden();
   if (zustand.kind && !aktivesKind()) zustand.kind = kinder.length ? kinder[0].id : null;
   await einstellungenLaden();
   if (kinder.length) speicherSchuetzen();

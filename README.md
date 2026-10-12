@@ -59,3 +59,4 @@ eine eigene Datenbank `zahlennest`, nur Schlüssel mit `zn:` und gemeinsam mit W
 `nest:pauseNach`, `nest:pauseAm`; Format in `app.js` beim Abschnitt „Pause“). Der Offline-Speicher räumt nur eigene
 Caches (`zahlennest-…`) auf. Kinder und Menschen lassen sich im Elternbereich aus Wortnest übernehmen (nur lesend, Namen/Tiere/Fotos).
 Eigene Stimmen: Im Elternbereich unter „Stimmen“ sprechen Menschen die Sätze selbst ein; die Aufnahmen bleiben auf dem Gerät.
+Bei „Hol mir …“ können Eltern eigene Dinge mit Foto anlegen (bis zu sechs).

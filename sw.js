@@ -1,7 +1,7 @@
 // Offline-Cache: Mit Internet immer die neueste Version laden, ohne Internet aus dem Cache.
 importScripts('ansagen.js');
 
-const CACHE = 'zahlennest-v15';   // gleiche Nummer wie APP_VERSION in app.js
+const CACHE = 'zahlennest-v16';   // gleiche Nummer wie APP_VERSION in app.js
 const DATEIEN = [
   './', 'index.html', 'style.css', 'app.js', 'ansagen.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-512-maskable.png', 'bilder/nest.svg',
