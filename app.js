@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 17;
+const APP_VERSION = 18;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -151,7 +151,7 @@ function kindBildHtml(k) {
 
 // Reihenfolge = Reihenfolge im Konzept (so werden sie nach und nach gebaut und freigeschaltet).
 // Montessori: ein Material kommt erst ins Regal, wenn es gezeigt wurde. Gespeichert wird, was AUSGEBLENDET ist.
-const ALLE_SPIELE = ['wieviele', 'mehr', 'korb', 'trommel', 'holmir', 'ziffern'];
+const ALLE_SPIELE = ['wieviele', 'mehr', 'korb', 'trommel', 'holmir', 'ziffern', 'welche'];
 const START_REGAL = ['wieviele'];
 const START_AUS = ALLE_SPIELE.filter((id) => !START_REGAL.includes(id));
 // Für Eltern: was jedes Spiel tut (die Kacheln zeigen den Kindern nur ein Bild)
@@ -162,6 +162,7 @@ const SPIEL_INFO = {
   trommel: 'So oft trommeln, wie gesagt wird (1–3, auf Wunsch bis 5)',
   holmir: 'Echte Dinge holen und zusammen zählen (mit Erwachsenem)',
   ziffern: 'Ziffern mit dem Finger nachfahren, dann die Menge sehen (eher ab 4)',
+  welche: 'Ziffern wiedererkennen: „Wo ist die Drei?“ (nach dem Nachspuren, eher ab 4)',
 };
 // Fertige Spiele: id -> Startfunktion. Was hier fehlt, erscheint weder auf der Startseite noch im Regal.
 const SPIELE = {};
@@ -393,6 +394,7 @@ window.addEventListener('popstate', () => {
   trommelStoppen();
   holStoppen();
   ziffernStoppen();
+  welcheStoppen();
   studioAbbrechen();
   studioMikrofonZu();
   const ziel = (history.state && history.state.screen) || 'home';
@@ -2746,6 +2748,293 @@ window.addEventListener('resize', () => {
   if (Math.abs(zfEl('.ziffer-tafel').getBoundingClientRect().width - zf.breite) < 1
     && Math.abs(zfEl('.ziffer-tafel').getBoundingClientRect().height - zf.hoehe) < 1) return;
   if (zifferTafelAufbauen()) zifferVormachen();
+});
+
+// ---------- Welche Zahl? Drei-Stufen-Lektion mit Ziffern (ab 4) ----------
+
+// 👀 „Das ist die Drei.“ (benennen) · 👂 „Wo ist die Drei?“ (wiedererkennen) · 🗣️ „Welche Zahl ist das? Sag es!“ (ohne
+// Prüfung). Ziffern aus denselben Gruppen wie „Ziffern nachspuren“ (verwechselbare Paare nie zusammen). In Stufe 2
+// erst zwei Karten, nach zwei sicheren Treffern hintereinander drei. Kein „falsch“: 1. Daneben = benennen, was getippt
+// wurde, 2. = die gesuchte Ziffer zeigt ihre Menge und die App zählt, 3. = Lösung zeigen und weiter.
+// Zum Schluss in echt: „Such eine Drei bei dir zu Hause!“
+const WELCHE_STUFEN = [3, 6, 3];
+const WELCHE_ZEIT = { nochmalFragen: 8000, weiterOhneTipp: 8000, antwort: 5000, unsicherWeiter: 2000, daumen: 4000,
+  auftragNochmal: 16000, vormachenPause: 900, pause: 900 };
+const wl = { stufe: 0, schritt: 0, punkte: 0, ziffern: [], auftraege: [], ziel: 0, versuche: 0, unsicher: new Set(),
+  serie: 0, drei: false, gesperrt: true, timer: null, nummer: 0, letzterTipp: -Infinity, fertig: false };
+const wlBausteine = spielBausteine('welche', wl);
+const { aktuell: wlAktuell, ansage: wlAnsage, zaehlen: wlZaehlen } = wlBausteine;
+const wlBenennen = (n) => `ziffer-ist-${n}`;
+
+function welcheStoppen() {
+  wlBausteine.stoppen();
+}
+
+function wlRundenZeichnen() {
+  let n = 0;
+  $('#welche-runden').innerHTML = WELCHE_STUFEN.map((anzahl) => `<span class="gruppe">${
+    Array.from({ length: anzahl }, () => `<span class="${n++ < wl.punkte ? 'voll' : ''}"></span>`).join('')}</span>`).join('');
+}
+
+// Karte: die Ziffer groß; darunter (erst bei der Hilfe sichtbar) ihre Menge als Punkte
+function wlKarte(n) {
+  const btn = document.createElement('button');
+  btn.className = 'mengen-karte ziffer-karte kommt';
+  btn.dataset.ziffer = n;
+  // Punkte eng zugeschnitten, damit sie auf der Karte groß genug sind
+  const menge = n ? zifferMengeSvg(n).replace('viewBox="0 0 100 100"', `viewBox="${n <= 5 ? '14 14 72 72' : '2 26 96 48'}"`) : '';
+  btn.innerHTML = `${zifferSvg(n)}<span class="ziffer-karte-menge">${menge}</span>`;
+  btn.setAttribute('aria-label', String(n));
+  btn.addEventListener('click', () => wlGetippt(n, btn));
+  return btn;
+}
+
+function wlKarten(liste, art) {
+  const box = $('#welche-karten');
+  box.className = `mengen-karten ${art}`;
+  box.replaceChildren(...liste.map(wlKarte));
+  return [...box.children];
+}
+
+const wlZielKarte = () => $(`#welche-karten .ziffer-karte[data-ziffer="${wl.ziel}"]`);
+
+// Stufe 2: jede Ziffer zweimal, nie zweimal dieselbe hintereinander
+function wlAuftraege() {
+  for (;;) {
+    const folge = mischen([...wl.ziffern, ...wl.ziffern]);
+    if (folge.every((n, i) => n !== folge[i - 1])) return folge;
+  }
+}
+
+// Stufe 1: eine Karte, „Das ist die Drei.“; Tippen = nochmal hören, dann weiter
+async function wlStufe1() {
+  welcheStoppen();
+  const nr = wl.nummer;
+  const n = wl.ziffern[wl.schritt];
+  const [karte] = wlKarten([n], 'einzeln');
+  if (!(await wlAnsage(nr, wlBenennen(n)))) return;
+  wl.gesperrt = false;
+  karte.classList.add('pulsiert');
+  wl.timer = setTimeout(() => wlAktuell(nr) && !wl.gesperrt && wlWeiter(nr), WELCHE_ZEIT.weiterOhneTipp);
+}
+
+// Stufe 2: zwei (später drei) Karten, Plätze jedes Mal neu, „Wo ist die Drei?“
+async function wlStufe2() {
+  welcheStoppen();
+  const nr = wl.nummer;
+  wl.ziel = wl.auftraege[wl.schritt];
+  wl.versuche = 0;
+  const andere = mischen(wl.ziffern.filter((z) => z !== wl.ziel)).slice(0, wl.drei ? 2 : 1);
+  wlKarten(mischen([wl.ziel, ...andere]), wl.drei ? 'drei' : 'zwei');
+  await warten(400);
+  if (!wlAktuell(nr)) return;
+  wlFragen(nr);
+}
+
+async function wlFragen(nr) {
+  if (!wlAktuell(nr)) return;
+  wl.gesperrt = true;
+  if (!(await wlAnsage(nr, `welche-wo-${wl.ziel}`))) return;
+  wl.gesperrt = false;
+  // Nichts getippt: nochmal fragen, danach pulsiert die gesuchte Karte sanft (nie selbst weiter, kein Zeitdruck)
+  clearTimeout(wl.timer);
+  wl.timer = setTimeout(async () => {
+    if (!wlAktuell(nr) || wl.gesperrt) return;
+    wl.gesperrt = true;
+    if (!(await wlAnsage(nr, `welche-wo-${wl.ziel}`))) return;
+    wl.gesperrt = false;
+    wl.timer = setTimeout(() => wlAktuell(nr) && wlZielKarte() && wlZielKarte().classList.add('pulsiert'), WELCHE_ZEIT.nochmalFragen);
+  }, WELCHE_ZEIT.nochmalFragen);
+}
+
+// Stufe 3: eine Karte, „Welche Zahl ist das? Sag es!“ – Ruhe zum Selbersagen; ohne Tipp nennt die App die Ziffer
+async function wlStufe3() {
+  welcheStoppen();
+  const nr = wl.nummer;
+  const n = wl.auftraege[wl.schritt];
+  const [karte] = wlKarten([n], 'einzeln');
+  // War die Ziffer in Stufe 2 noch unsicher: zurück zum Benennen (einmal, dann weiter)
+  if (wl.unsicher.has(n)) {
+    if (!(await wlAnsage(nr, wlBenennen(n)))) return;
+    wl.gesperrt = false;
+    wl.timer = setTimeout(() => wlAktuell(nr) && !wl.gesperrt && wlWeiter(nr), WELCHE_ZEIT.unsicherWeiter);
+    return;
+  }
+  if (!(await wlAnsage(nr, 'welche-sag-es'))) return;
+  wl.gesperrt = false;
+  wl.timer = setTimeout(() => wlAktuell(nr) && !wl.gesperrt && wlAntwort(nr, n, karte), WELCHE_ZEIT.antwort);
+}
+
+async function wlAntwort(nr, n, karte) {
+  wl.gesperrt = true;
+  clearTimeout(wl.timer);
+  karte.classList.remove('pulsiert');
+  animieren(karte, 'huepft');
+  if (!(await wlAnsage(nr, wlBenennen(n)))) return;
+  await warten(WELCHE_ZEIT.pause);
+  wlWeiter(nr);
+}
+
+// Hilfe: die Ziffer zeigt ihre Menge, die App zählt (bei der Null: „da ist nichts“)
+async function wlMengeZeigen(nr, karte, n) {
+  karte.classList.add('mit-menge');
+  if (n) return wlZaehlen(nr, `zaehlen-${n}`, [...karte.querySelectorAll('.karte-punkt')]);
+  return wlAnsage(nr, 'ziffer-null-nichts');
+}
+
+async function wlGetippt(n, btn) {
+  const jetzt = performance.now();
+  if (wl.gesperrt || wl.stufe === 3 || jetzt - wl.letzterTipp < 400) return;
+  wl.letzterTipp = jetzt;
+  audio();
+  clearTimeout(wl.timer);
+  const nr = wl.nummer;
+  wl.gesperrt = true;
+  btn.classList.remove('pulsiert');
+  if (wl.stufe !== 1) { wlAntwort(nr, n, btn); return; }   // Stufe 1 und 3: Tippen = die Ziffer hören
+  if (n === wl.ziel) {
+    btn.classList.add('richtig');
+    animieren(btn, 'huepft');
+    glockenspiel();
+    // Zwei sichere Treffer hintereinander: ab jetzt drei Karten
+    if (wl.versuche === 0 && ++wl.serie >= 2) wl.drei = true;
+    await warten(400);
+    if (!(await wlAnsage(nr, wlBenennen(n)))) return;
+    await warten(WELCHE_ZEIT.pause);
+    wlWeiter(nr);
+    return;
+  }
+  wl.versuche++;
+  wl.serie = 0;
+  wl.drei = false;   // unsicher: wieder mit zwei Karten
+  wl.unsicher.add(wl.ziel);
+  const ziel = wlZielKarte();
+  if (wl.versuche === 1) {
+    // Daneben: sanft wackeln und benennen, was getippt wurde – dann die Frage nochmal
+    animieren(btn, 'wackelt');
+    if (!(await wlAnsage(nr, wlBenennen(n)))) return;
+    await warten(400);
+    wlFragen(nr);
+  } else if (wl.versuche === 2) {
+    // Hilfe: die anderen treten zurück, die gesuchte Ziffer zeigt ihre Menge
+    document.querySelectorAll('#welche-karten .ziffer-karte').forEach((k) => k.classList.toggle('blass', k !== ziel));
+    animieren(btn, 'wackelt');
+    if (!(await wlMengeZeigen(nr, ziel, wl.ziel))) return;
+    document.querySelectorAll('#welche-karten .ziffer-karte').forEach((k) => k.classList.remove('blass'));
+    await warten(400);
+    wlFragen(nr);
+  } else {
+    // Lösung zeigen und weiter
+    ziel.classList.add('richtig');
+    animieren(ziel, 'huepft');
+    if (!(await wlAnsage(nr, wlBenennen(wl.ziel)))) return;
+    await warten(WELCHE_ZEIT.pause);
+    wlWeiter(nr);
+  }
+}
+
+function wlWeiter(nr) {
+  if (!wlAktuell(nr)) return;
+  wl.punkte++;
+  wl.schritt++;
+  wlRundenZeichnen();
+  if (wl.schritt < WELCHE_STUFEN[wl.stufe]) { wlSchritt(); return; }
+  wlNaechsteStufe();
+}
+
+function wlSchritt() {
+  $('#welche-symbol').textContent = WIEVIELE_SYMBOL[wl.stufe] || '';
+  [wlStufe1, wlStufe2, wlStufe3, wlAuftrag][wl.stufe]();
+}
+
+async function wlNaechsteStufe() {
+  welcheStoppen();
+  const nr = wl.nummer;
+  glockenspiel();
+  wl.stufe++;
+  wl.schritt = 0;
+  wl.auftraege = wl.stufe === 1 ? wlAuftraege() : mischen(wl.ziffern);
+  await warten(700);
+  if (!wlAktuell(nr)) return;
+  wlSchritt();
+  animieren($('#welche-symbol'), 'huepft');
+}
+
+// Haus mit Hausnummer (Vormachen: „Zahlen gibt es überall …“)
+function wlHausSvg(n) {
+  const ziffer = zifferSvg(n).replace('class="ziffer-svg"', 'x="49" y="34" width="22" height="30"');
+  return '<svg class="welche-haus" viewBox="0 0 120 120" aria-hidden="true">'
+    + '<path d="M14 58 L60 18 L106 58 Z" fill="#d23c2c" stroke="#4a3f35" stroke-width="4" stroke-linejoin="round"/>'
+    + '<rect x="22" y="56" width="76" height="56" fill="#f6efe3" stroke="#4a3f35" stroke-width="4"/>'
+    + '<rect x="48" y="76" width="24" height="36" rx="3" fill="#8a5a3c" stroke="#4a3f35" stroke-width="3"/>'
+    + '<rect x="46" y="31" width="28" height="36" rx="5" fill="#1d5fbf" stroke="#4a3f35" stroke-width="3"/>'
+    + ziffer.replace('stroke="#4a3f35"', 'stroke="#ffffff"') + '</svg>';
+}
+
+// Echte Welt: vormachen (Haus mit Hausnummer, „Zahlen gibt es überall“), dann „Jetzt in echt!“ – „Such eine Drei bei
+// dir zu Hause!“; nach 👍 „Du hast eine Zahl gefunden!“
+async function wlAuftrag() {
+  welcheStoppen();
+  const nr = wl.nummer;
+  wl.fertig = false;
+  $('#btn-welche-daumen').hidden = true;
+  const n = wl.ziffern[wl.ziffern.length - 1];
+  const box = $('#welche-karten');
+  box.className = 'mengen-karten';
+  box.innerHTML = `<div class="welche-vormachen">${wlHausSvg(n)}</div>`;
+  if (!(await wlAnsage(nr, 'welche-such-vor'))) return;
+  await warten(WELCHE_ZEIT.vormachenPause);
+  if (!wlAktuell(nr)) return;
+  inEcht({ z: wl, nr, aktuell: wlAktuell, ansage: wlAnsage, buehne: box, knopf: $('#btn-welche-daumen'),
+    karteHtml: `${zifferSvg(n)}<span class="karte-bild">🔎</span>`, sagen: (nr2) => wlAnsage(nr2, `welche-such-${n}`),
+    zeit: WELCHE_ZEIT });
+}
+
+async function wlAuftragErledigt(nr) {
+  const karte = inEchtBestaetigt(wl, $('#btn-welche-daumen'));
+  if (!karte) return;
+  animieren(karte, 'huepft');
+  glockenspiel();
+  await warten(400);
+  if (!(await wlAnsage(nr, 'welche-such-fertig'))) return;
+  spielEnde('welche', welcheNeu);
+}
+
+$('#btn-welche-daumen').addEventListener('click', () => { audio(); if (wl.inEcht) wlAuftragErledigt(wl.nummer); });
+
+function welcheNeu() {
+  welcheStoppen();
+  Object.assign(wl, { stufe: 0, schritt: 0, punkte: 0, ziffern: ziffernRundenPlanen(), auftraege: [], unsicher: new Set(),
+    serie: 0, drei: false, fertig: false, inEcht: false });
+  wl.auftraege = [...wl.ziffern];
+  $('#btn-welche-daumen').hidden = true;
+  wlRundenZeichnen();
+  wlSchritt();
+}
+
+function welcheStarten() {
+  spielEndeWeg('welche');
+  zeigen('welche');
+  welcheNeu();
+}
+SPIELE.welche = welcheStarten;
+// Kachel: zwei Ziffernkarten
+$('#home .spiel-btn[data-spiel="welche"]').innerHTML = `<span class="kachel-ziffern">${zifferSvg(1)}${zifferSvg(3)}</span>`;
+
+$('#btn-welche-home').addEventListener('click', () => { welcheStoppen(); wiedergabeStoppen(); zurStartseite(); });
+// 🔊: Ansage nochmal; in Stufe 2 nur die Frage (Karten bleiben liegen)
+$('#btn-welche-laut').addEventListener('click', () => {
+  const ende = $('#welche .spiel-ende');
+  if ((ende && !ende.hidden) || wl.fertig || wl.gesperrt) return;
+  audio();
+  if (wl.inEcht) { inEchtNochmal(wl); return; }
+  if (wl.stufe === 1) {
+    clearTimeout(wl.timer);
+    wl.nummer++;
+    wlFragen(wl.nummer);
+    return;
+  }
+  wlSchritt();
 });
 
 // ---------- Elternbereich (2 Sekunden gedrückt halten) ----------

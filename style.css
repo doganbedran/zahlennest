@@ -509,3 +509,19 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 .malt .ziffer-svg path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: ziffer-malen 2.4s ease-in-out forwards; }
 @keyframes ziffer-malen { to { stroke-dashoffset: 0; } }
 .in-echt-karte .ziffer-svg { height: min(96px, 14dvh); }
+
+/* ---------- Welche Zahl? (Ziffernkarten; Menge erscheint nur als Hilfe) ---------- */
+.mengen-karten.zwei { grid-template-columns: repeat(2, min(170px, 40vw, 26vh)); }
+@media (orientation: landscape) { .mengen-karten.zwei { grid-template-columns: repeat(2, min(230px, 30vw, 50vh)); } }
+.ziffer-karte { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8%; }
+.ziffer-karte .ziffer-svg { width: auto; height: 100%; transition: height 0.3s; }
+.ziffer-karte-menge { display: none; width: 100%; height: 40%; }
+.ziffer-karte-menge svg { width: 100%; height: 100%; }
+.ziffer-karte.mit-menge .ziffer-svg { height: 58%; }
+.ziffer-karte.mit-menge .ziffer-karte-menge { display: block; }
+.ziffer-karte .karte-punkt { fill: none; stroke: #4a3f35; stroke-width: 5; }
+.ziffer-karte .karte-punkt.leuchtet { fill: #f5c518; stroke: #b07800; }
+.welche-vormachen { display: flex; justify-content: center; }
+.welche-haus { width: min(260px, 60vw, 40vh); height: auto; }
+.kachel-ziffern { display: flex; gap: 6%; width: 78%; justify-content: center; }
+.kachel-ziffern .ziffer-svg { width: 44%; height: auto; background: #fff; border: 3px solid #e3d8c6; border-radius: 12px; padding: 4px; }

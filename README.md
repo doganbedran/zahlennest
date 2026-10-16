@@ -39,6 +39,10 @@ hinzufügen“. Elternbereich: ⚙️ oben rechts 2 Sekunden halten. Fragen und 
   Querstrich; blauer Startpunkt, orange Pfeile, Daten in `striche.js`). Danach erscheint die Menge als Punkte:
   „Eins, zwei, drei. Drei!“ (Null: „Da ist nichts!“). Drei Ziffern je Besuch, dann „Mal eine Drei in die Luft!“.
   Je Kind: 1 2 3, dann 4 5 6, 7 8 9 und die 0 dazunehmen (verwechselbare Paare 6/9, 1/7, 2/5 nie zusammen).
+- 🔢 **Welche Zahl?** (ab 4) – Drei-Stufen-Lektion mit Ziffern: „Das ist die Drei.“ → „Wo ist die Drei?“ (erst zwei
+  Karten, nach zwei sicheren Treffern drei; daneben = benennen, dann zeigt die Ziffer ihre Menge, dann Lösung) →
+  „Welche Zahl ist das? Sag es!“ (ohne Prüfung). Zum Schluss „Such eine Drei bei dir zu Hause!“. Gleiche Gruppen wie
+  beim Nachspuren.
 
 Alle Spiele enden gleich: Das Spiel macht den Auftrag einmal vor, dann „Jetzt in echt!“ – der Bildschirm wird ruhig
 (👐, kleine Erinnerungskarte), das Kind macht es mit echten Dingen; ein Erwachsener tippt 👍, dann zählt die App mit.

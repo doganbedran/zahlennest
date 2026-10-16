@@ -50,6 +50,9 @@ LAEUFE=(
   "ziffern-klein|tests/ziffern.html|360,640|90"
   "ziffern-tab|tests/ziffern.html|1280,800|90"
   "ziffern-quer|tests/ziffern.html|860,412|90"
+  "welche|tests/welche.html|412,860|90"
+  "welche-klein|tests/welche.html|360,640|90"
+  "welche-quer|tests/welche.html|860,412|90"
   "sicherheit|tests/sicherheit.html|412,860|60"
   "offline|tests/offline.html|412,860|60"
 )
