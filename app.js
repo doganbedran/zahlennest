@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 18;
+const APP_VERSION = 19;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -619,8 +619,16 @@ const benennen = (n) => `wieviele-${n}`;
 
 // Würfelbild: 3×3-Raster, gleich große Punkte in gleichem Abstand (1 = Mitte, 2 = Diagonale, 3 = Diagonale ganz)
 const WUERFEL = { 1: [[50, 50]], 2: [[24, 24], [76, 76]], 3: [[24, 24], [50, 50], [76, 76]] };
-const wuerfelSvg = (n) => `<svg viewBox="0 0 100 100" aria-hidden="true">${
-  WUERFEL[n].map(([x, y]) => `<circle class="menge-punkt" cx="${x}" cy="${y}" r="11"/>`).join('')}</svg>`;
+// Andere Anordnungen (ab Stufe 2): sonst lernt das Kind womöglich das Bild „Drei“ statt der Anzahl drei.
+// Punkte bleiben gleich groß und im gleichen Abstand.
+const ANORDNUNGEN = {
+  1: [[[50, 50]], [[30, 70]], [[70, 32]]],
+  2: [[[24, 24], [76, 76]], [[26, 50], [74, 50]], [[50, 24], [50, 76]], [[76, 24], [24, 76]]],
+  3: [[[24, 24], [50, 50], [76, 76]], [[20, 50], [50, 50], [80, 50]], [[50, 24], [24, 72], [76, 72]], [[26, 28], [74, 28], [50, 74]]],
+};
+const wuerfelSvg = (n, stellen = WUERFEL[n]) => `<svg viewBox="0 0 100 100" aria-hidden="true">${
+  stellen.map(([x, y]) => `<circle class="menge-punkt" cx="${x}" cy="${y}" r="11"/>`).join('')}</svg>`;
+const gemischtSvg = (n) => wuerfelSvg(n, zufall(ANORDNUNGEN[n]));
 
 // Fingerbild (Hand von vorn, Daumen links; Daumen zuerst wie in Deutschland üblich): 1 = Daumen, 2 = + Zeigefinger, 3 = + Mittelfinger.
 // Gestreckte Finger haben die Klasse „zaehlt“ (in Zählreihenfolge), eingeklappte sind kurze Stummel.
@@ -700,7 +708,7 @@ async function wvStufe2() {
   wv.versuche = 0;
   const box = $('#wieviele-karten');
   box.className = 'mengen-karten drei';
-  box.replaceChildren(...mischen([1, 2, 3]).map((n) => wvKarte(n)));
+  box.replaceChildren(...mischen([1, 2, 3]).map((n) => wvKarte(n, gemischtSvg(n))));
   await warten(400);
   if (!wvAktuell(nr)) return;
   wvFragen(nr);
@@ -730,7 +738,7 @@ async function wvStufe3() {
   wievieleStoppen();
   const nr = wv.nummer;
   const n = wv.auftraege[wv.schritt];
-  const karte = wvEinzeln(n);
+  const karte = wvEinzeln(n, gemischtSvg(n));
   // War die Menge in Stufe 2 noch unsicher: wie in der Montessori-Lektion zurück zum Benennen (einmal, dann weiter)
   if (wv.unsicher.has(n)) {
     if (!(await wvAnsage(nr, benennen(n)))) return;
@@ -2270,7 +2278,7 @@ function zifferTafelAufbauen() {
     for (let i = 1; i < p.length; i++) l.push(l[i - 1] + Math.hypot(p[i].x - p[i - 1].x, p[i].y - p[i - 1].y));
     return { p, l, L: l[l.length - 1] };
   });
-  Object.assign(zf, { strichNr: 0, fortschritt: 0, versuch: null, spuren: [], pointerId: null, letzter: null, geschafft: false, abrutscher: 0 });
+  Object.assign(zf, { strichNr: 0, fortschritt: 0, versuch: null, spuren: [], pointerId: null, letzter: null, geschafft: false, abrutscher: 0, hilfen: 0 });
   zifferSpurenZeichnen();
   zifferVorlageZeichnen();
   return true;
@@ -2470,7 +2478,6 @@ function zifferStrichEnde(e) {
 }
 
 function zifferAbgerutscht() {
-  zfVibrieren([30, 60, 30]);
   const v = zf.versuch;
   v.folgt = false;
   v.punkte = [];
@@ -2478,8 +2485,24 @@ function zifferAbgerutscht() {
   zifferSpurenZeichnen();
   zifferVorlageZeichnen();
   zifferHinweis();
-  // Nach dreimal Abrutschen: der Lichtpunkt macht die Ziffer nochmal vor (kein „falsch“)
-  if (++zf.abrutscher >= 3) { zf.abrutscher = 0; zifferVormachen(); }
+  // Nach dreimal Abrutschen: erst macht der Lichtpunkt die Ziffer nochmal vor, beim nächsten Mal führt er den Strich
+  // selbst zu Ende (kein „falsch“, kein Steckenbleiben – „nach 3 Versuchen Lösung zeigen und weiter“)
+  if (++zf.abrutscher < 3) return;
+  zf.abrutscher = 0;
+  if (zf.hilfen++ === 0) zifferVormachen();
+  else zifferStrichZeigen();
+}
+
+// Lösung zeigen: der aktuelle Strich wird in der Spurfarbe gemalt und gilt als geschafft
+function zifferStrichZeigen() {
+  const pfad = zf.pfade[zf.strichNr];
+  const ab = pfad.p.findIndex((_, i) => pfad.l[i] > zf.fortschritt);
+  const punkte = [zifferPunktBei(pfad, zf.fortschritt), ...pfad.p.slice(ab < 0 ? pfad.p.length : ab)];
+  zf.versuch = { punkte, folgt: true, startFortschritt: zf.fortschritt };
+  zf.pointerId = null;
+  zifferSpurenZeichnen();
+  for (let i = 1; i < punkte.length; i++) zifferLinie(punkte[i - 1], punkte[i]);
+  zifferStrichFertig();
 }
 
 function zifferStrichFertig() {
@@ -2757,7 +2780,9 @@ window.addEventListener('resize', () => {
 // erst zwei Karten, nach zwei sicheren Treffern hintereinander drei. Kein „falsch“: 1. Daneben = benennen, was getippt
 // wurde, 2. = die gesuchte Ziffer zeigt ihre Menge und die App zählt, 3. = Lösung zeigen und weiter.
 // Zum Schluss in echt: „Such eine Drei bei dir zu Hause!“
-const WELCHE_STUFEN = [3, 6, 3];
+const WELCHE_STUFEN_LANG = [3, 6, 3];
+const WELCHE_STUFEN_KURZ = [3, 3, 2];   // solange nur 1 2 3 an ist (eher das jüngere Kind): kürzer
+let WELCHE_STUFEN = WELCHE_STUFEN_LANG;
 const WELCHE_ZEIT = { nochmalFragen: 8000, weiterOhneTipp: 8000, antwort: 5000, unsicherWeiter: 2000, daumen: 4000,
   auftragNochmal: 16000, vormachenPause: 900, pause: 900 };
 const wl = { stufe: 0, schritt: 0, punkte: 0, ziffern: [], auftraege: [], ziel: 0, versuche: 0, unsicher: new Set(),
@@ -2953,7 +2978,7 @@ async function wlNaechsteStufe() {
   glockenspiel();
   wl.stufe++;
   wl.schritt = 0;
-  wl.auftraege = wl.stufe === 1 ? wlAuftraege() : mischen(wl.ziffern);
+  wl.auftraege = (wl.stufe === 1 ? wlAuftraege() : mischen(wl.ziffern)).slice(0, WELCHE_STUFEN[wl.stufe] || 1);
   await warten(700);
   if (!wlAktuell(nr)) return;
   wlSchritt();
@@ -3004,6 +3029,7 @@ $('#btn-welche-daumen').addEventListener('click', () => { audio(); if (wl.inEcht
 
 function welcheNeu() {
   welcheStoppen();
+  WELCHE_STUFEN = Object.values(ZIFFER_OPTIONEN).some((o) => zustand[o]) ? WELCHE_STUFEN_LANG : WELCHE_STUFEN_KURZ;
   Object.assign(wl, { stufe: 0, schritt: 0, punkte: 0, ziffern: ziffernRundenPlanen(), auftraege: [], unsicher: new Set(),
     serie: 0, drei: false, fertig: false, inEcht: false });
   wl.auftraege = [...wl.ziffern];

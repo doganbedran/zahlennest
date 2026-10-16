@@ -220,7 +220,7 @@ const ANSAGEN = {
   'welche-wo-8': ['Wo ist die Acht?', 'Welche Zahl?'],
   'welche-wo-9': ['Wo ist die Neun?', 'Welche Zahl?'],
   'welche-sag-es': ['Welche Zahl ist das? Sag es!', 'Welche Zahl?'],
-  'welche-such-vor': ['Zahlen gibt es überall: an der Haustür, auf der Fernbedienung und im Buch.', 'Welche Zahl?'],
+  'welche-such-vor': ['Zahlen gibt es überall: an der Haustür, am Telefon und im Buch.', 'Welche Zahl?'],
   'welche-such-0': ['Such eine Null bei dir zu Hause!', 'Welche Zahl?'],
   'welche-such-1': ['Such eine Eins bei dir zu Hause!', 'Welche Zahl?'],
   'welche-such-2': ['Such eine Zwei bei dir zu Hause!', 'Welche Zahl?'],

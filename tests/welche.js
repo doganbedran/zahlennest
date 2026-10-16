@@ -22,6 +22,11 @@
   const karte = (n) => $(`#welche-karten .ziffer-karte[data-ziffer="${n}"]`);
   const bereit = (stufe) => bis(() => wl.stufe === stufe && !wl.gesperrt);
 
+  // 0. Kurz (3/3/2), solange nur 1 2 3 an ist; der Ablauf unten wird mit voller Länge geprüft
+  pruefe(JSON.stringify(WELCHE_STUFEN_KURZ) === '[3,3,2]', 'Kurzfassung fehlt');
+  WELCHE_STUFEN_KURZ.splice(0, 3, ...WELCHE_STUFEN_LANG);
+  pruefe(ANSAGEN['welche-such-vor'][0].includes('Telefon') && !/Fernbedienung/.test(ANSAGEN['welche-such-vor'][0]), 'Fernbedienung in der Ansage');
+
   // 1. Ansagen
   pruefe(ANSAGEN['welche-wo-3'][0] === 'Wo ist die Drei?' && ANSAGEN['welche-such-0'][0] === 'Such eine Null bei dir zu Hause!', 'Ansagen');
   pruefe((await fetch('audio/ansage-welche-wo-7.wav')).ok && (await fetch('audio/ansage-welche-sag-es.wav')).ok, 'Ansage-Dateien fehlen');
@@ -95,6 +100,10 @@
 
   // 7. Gruppen wie beim Nachspuren: mit 4 5 6 mindestens zwei daraus, nie ein verwechselbares Paar
   zustand.ziffern456 = true;
+  $('#welche .ende-nochmal').click();
+  pruefe(WELCHE_STUFEN === WELCHE_STUFEN_LANG, 'Mit 4 5 6 nicht die volle Länge');
+  welcheStoppen();
+  spielEnde('welche', welcheNeu);
   for (let k = 0; k < 20; k++) {
     $('#welche .ende-nochmal').click();
     pruefe(wl.ziffern.filter((z) => z >= 4).length >= 2 && !ZIFFER_VERWECHSLUNG.some(([a, b]) => wl.ziffern.includes(a) && wl.ziffern.includes(b)),

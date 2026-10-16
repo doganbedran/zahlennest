@@ -84,6 +84,10 @@
   pruefe(zf.strichNr === 0 && zf.fortschritt === 0 && !zf.spuren.length, 'Daneben zählt');
   for (let i = 0; i < 3; i++) await fahre([p0[0], p0[3], { x: p0[3].x + 300, y: p0[3].y }]);
   pruefe(zf.vormachen && zf.strichNr === 0, 'Nach dreimal Abrutschen kein Vormachen');
+  // Nochmal dreimal: jetzt führt der Lichtpunkt den Strich zu Ende (Lösung zeigen, weiter) – nie steckenbleiben
+  for (let i = 0; i < 3; i++) await fahre([p0[0], p0[3], { x: p0[3].x + 300, y: p0[3].y }]);
+  pruefe(zf.geschafft && zf.strichNr === 1, 'Nach weiterem dreimal Abrutschen wird der Strich nicht gezeigt');
+  pruefe(!/navigator\.vibrate|zfVibrieren\(\[/.test(String(zifferAbgerutscht)), 'Abrutschen vibriert');
 
   // 5. Eins nachfahren: Menge (ein Punkt), „Eins!“, dann die Zwei
   await zifferFahren();
