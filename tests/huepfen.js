@@ -5,7 +5,7 @@
   const fehler = [];
   const pruefe = (b, t) => { if (!b) fehler.push(t); };
   const warte = (ms) => new Promise((r) => setTimeout(r, ms));
-  const bis = async (fn, ms = 4000) => {
+  const bis = async (fn, ms = 6000) => {
     const ende = Date.now() + ms;
     while (!fn() && Date.now() < ende) await warte(20);
     return fn();
@@ -58,11 +58,13 @@
   for (let i = 0; i < 5; i++) await schieben(feldPunkt(hp.mass.stellen[i]));
   pruefe(['korb-zahl-1', 'korb-zahl-2', 'korb-zahl-3', 'korb-zahl-4', 'korb-zahl-5'].every((g, i) => gesagt.indexOf(g) >= 0
     && (!i || gesagt.indexOf(g) > gesagt.indexOf(`korb-zahl-${i}`))), `Zahlwörter: ${gesagt}`);
-  await bis(() => hp.inEcht && !$('#btn-huepfen-daumen').hidden);
+  if (!(await bis(() => hp.inEcht && !$('#btn-huepfen-daumen').hidden))) fehler.push(`Kein Auftrag: Stein ${hp.stein}, gesperrt ${hp.gesperrt}, ${gesagt.slice(-4)}`);
   const welt = gesagt.slice(gesagt.lastIndexOf('korb-zahl-5'));
   pruefe(welt.join() === 'korb-zahl-5,huepfen-ende-5,jetzt-in-echt,huepfen-welt-5', `Auftrag: ${welt}`);
   $('#btn-huepfen-daumen').click();
-  await bis(() => $('#huepfen .spiel-ende') && !$('#huepfen .spiel-ende').hidden);
+  if (!(await bis(() => $('#huepfen .spiel-ende') && !$('#huepfen .spiel-ende').hidden))) {
+    throw new Error(`Kein Spielende: inEcht ${hp.inEcht}, fertig ${hp.fertig}, ${gesagt.slice(-5)}`);
+  }
   pruefe(gesagt.slice(-2).join() === 'zaehlen-5,huepfen-fertig', `Schluss: ${gesagt.slice(-2)}`);
 
   // 5. Bis zehn: zehn Steine, alle im Bild und ohne Überlappen

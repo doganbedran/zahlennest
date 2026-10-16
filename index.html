@@ -115,6 +115,7 @@
       <button class="spiel-btn" data-spiel="faecher" aria-label="Fächer füllen" hidden></button>
       <button class="spiel-btn" data-spiel="jedem" aria-label="Jedem eins" hidden></button>
       <button class="spiel-btn" data-spiel="huepfen" aria-label="Zahlen-Hüpfen" hidden></button>
+      <button class="spiel-btn" data-spiel="weg" aria-label="Zahlenweg" hidden></button>
     </nav>
     <!-- Noch kein Spiel im Regal: ruhiges Nest statt leerer Seite -->
     <div id="home-leer" class="home-leer" hidden><img src="bilder/nest.svg" alt=""></div>
@@ -219,6 +220,17 @@
     </header>
     <div id="huepfen-feld" class="huepfen-feld"></div>
     <div class="daumen-platz"><button id="btn-huepfen-daumen" class="daumen-btn" aria-label="Gemacht" hidden>👍</button></div>
+  </section>
+
+  <!-- Zahlenweg: gerader Weg 1–10, Kind und Teddy würfeln abwechselnd, ein gemeinsamer Käfer -->
+  <section id="weg" class="screen">
+    <header class="topbar">
+      <button id="btn-weg-home" class="icon-btn" aria-label="Zurück">🏠</button>
+      <span></span>
+      <button id="btn-weg-laut" class="icon-btn" aria-label="Nochmal hören">🔊</button>
+    </header>
+    <div id="weg-feld" class="weg-feld-buehne"></div>
+    <div class="daumen-platz"><button id="btn-weg-daumen" class="daumen-btn" aria-label="Gemacht" hidden>👍</button></div>
   </section>
 
   <!-- Hol mir …: ganz echte Welt – „Hol mir zwei Löffel!“, das Kind holt, ein Erwachsener tippt 👍, dann wird gezählt -->

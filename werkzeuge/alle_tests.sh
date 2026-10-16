@@ -64,6 +64,9 @@ LAEUFE=(
   "huepfen|tests/huepfen.html|412,860|90"
   "huepfen-klein|tests/huepfen.html|360,640|90"
   "huepfen-quer|tests/huepfen.html|860,412|90"
+  "weg|tests/weg.html|412,860|90"
+  "weg-klein|tests/weg.html|360,640|90"
+  "weg-quer|tests/weg.html|860,412|90"
   "sicherheit|tests/sicherheit.html|412,860|60"
   "offline|tests/offline.html|412,860|60"
 )

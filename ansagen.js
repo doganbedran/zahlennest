@@ -278,4 +278,15 @@ const ANSAGEN = {
   'huepfen-welt-5': ['Jetzt hüpfst du! Fünfmal – wir zählen zusammen.', 'Zahlen-Hüpfen'],
   'huepfen-welt-10': ['Jetzt hüpfst du! Zehnmal – wir zählen zusammen.', 'Zahlen-Hüpfen'],
   'huepfen-fertig': ['Du bist gehüpft und hast mitgezählt!', 'Zahlen-Hüpfen'],
+  // Zahlenweg (gerades Brett 1–10, nach Ramani & Siegler): Zahl je Feld mit korb-zahl-n
+  'weg-start': ['Wir bringen den Käfer zusammen bis zur Zehn. Du würfelst zuerst!', 'Zahlenweg'],
+  'weg-du': ['Du bist dran! Tipp auf den Würfel.', 'Zahlenweg'],
+  'weg-wurf-1': ['Eins!', 'Zahlenweg'],
+  'weg-wurf-2': ['Zwei!', 'Zahlenweg'],
+  'weg-schieb-1': ['Schieb den Käfer ein Feld weiter.', 'Zahlenweg'],
+  'weg-schieb-2': ['Schieb den Käfer zwei Felder weiter.', 'Zahlenweg'],
+  'weg-teddy': ['Jetzt ist der Teddy dran.', 'Zahlenweg'],
+  'weg-ziel': ['Zehn! Wir sind zusammen am Ziel!', 'Zahlenweg'],
+  'weg-welt': ['Zählt zusammen die Treppenstufen, wenn ihr hochgeht!', 'Zahlenweg'],
+  'weg-welt-fertig': ['Ihr habt die Stufen gezählt!', 'Zahlenweg'],
 };

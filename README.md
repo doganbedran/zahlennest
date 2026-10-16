@@ -53,6 +53,9 @@ hinzufügen“. Elternbereich: ⚙️ oben rechts 2 Sekunden halten. Fragen und 
 - 🐸 **Zahlen-Hüpfen** (ab 3) – Abzählvers für die Zahlwortreihe: Die App spricht den Vers in einem Zug, der Frosch
   hüpft im Takt von Stein zu Stein; dann schiebt das Kind ihn (Zahlwort je Stein, nur der nächste Stein zählt).
   „Fünf Steine!“ Zum Schluss hüpft das Kind selbst, die App zählt mit. Je Kind bis 5 oder bis 10.
+- 🐞 **Zahlenweg** (ab 4) – gerades, durchnummeriertes Brett 1–10 (nach Ramani & Siegler 2008): Kind und Teddy
+  würfeln abwechselnd (Würfel nur 1 oder 2) und bringen denselben Käfer gemeinsam ins Ziel – kein Gewinner. Beim Ziehen
+  wird die Zahl jedes Feldes gesagt; das Kind schiebt Feld für Feld. Zum Schluss: Treppenstufen zählen.
 
 Alle Spiele enden gleich: Das Spiel macht den Auftrag einmal vor, dann „Jetzt in echt!“ – der Bildschirm wird ruhig
 (👐, kleine Erinnerungskarte), das Kind macht es mit echten Dingen; ein Erwachsener tippt 👍, dann zählt die App mit.

@@ -92,7 +92,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .spiel-btn {
   border: none; border-radius: 32px; background: var(--papier); box-shadow: var(--schatten);
-  font-size: clamp(2.6rem, 9vh, 5rem); display: grid; place-items: center; padding: 0;
+  font-size: calc(var(--kachel, 170px) * 0.46); display: grid; place-items: center; padding: 0;
 }
 .spiel-btn:active { transform: scale(0.94); }
 /* Bis Kinder/Regal geladen sind keine Spiel-Kacheln zeigen (sonst springen sie, und ein Kind trifft das falsche Spiel) */
@@ -560,7 +560,7 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 .jedem-ding.greift svg { transform: scale(1.1); }
 .jedem-ding.huepft svg { animation: ding-huepfen 0.4s ease; }
 .jedem-ding.leuchtet svg { filter: drop-shadow(0 0 6px #f5c518); }
-.kachel-jedem { display: grid; grid-template-columns: 1fr 1fr; width: 76%; font-size: 2.2rem; text-align: center; line-height: 1.1; }
+.kachel-jedem { display: grid; grid-template-columns: 1fr 1fr; width: 76%; font-size: 0.42em; text-align: center; line-height: 1.1; }
 .kachel-jedem .k-ding svg { width: 70%; height: auto; }
 @media (prefers-reduced-motion: reduce) { .jedem-ding { transition: none; } }
 
@@ -576,6 +576,36 @@ body.laedt #home .spiele-raster { visibility: hidden; }
   z-index: 3; touch-action: none; transition: transform 0.3s ease-out; }
 .frosch.greift { transition: none; }
 .frosch.huepft { animation: ding-huepfen 0.4s ease; }
-.kachel-huepfen { display: grid; justify-items: center; font-size: 2.6rem; line-height: 1; }
+.kachel-huepfen { display: grid; justify-items: center; font-size: 0.6em; line-height: 1; }
 .kachel-huepfen .k-stein { width: 1.2em; height: 0.36em; border-radius: 50%; background: #a9a39a; margin-top: 4px; }
 @media (prefers-reduced-motion: reduce) { .frosch { transition: none; } }
+
+/* ---------- Zahlenweg: gerade Reihe 1–10, Käfer, Würfel (1–2), Teddy ---------- */
+#weg, .weg-feld-buehne { touch-action: none; overscroll-behavior: none; }
+.weg-feld-buehne { flex: 1; position: relative; min-height: 0; }
+.weg-feld { position: absolute; border-radius: 10px; background: var(--papier); border: 3px solid #c7b08a; display: flex;
+  align-items: center; justify-content: center; padding: 4px 2px; transition: background 0.3s; }
+.weg-feld .ziffer-svg { height: 100%; width: auto; max-width: 50%; }
+.weg-feld.ziel { border-color: #b07800; background: #fff3c4; }
+.weg-feld.besucht { background: #f6efe3; }
+.weg-feld.leuchtet { background: #f5c518; }
+.kaefer { position: absolute; left: 0; top: 0; display: flex; align-items: center; justify-content: center; line-height: 1;
+  z-index: 3; touch-action: none; transition: transform 0.35s ease-out; }
+.kaefer.greift { transition: none; }
+.kaefer.huepft { animation: ding-huepfen 0.4s ease; }
+.weg-unten { position: absolute; left: 0; right: 0; bottom: 96px; display: flex; justify-content: center; align-items: center; gap: 40px; }
+@media (orientation: landscape) { .weg-unten { bottom: 16px; } }
+.weg-wuerfel { width: min(120px, 26vw, 22dvh); aspect-ratio: 1; border-radius: 22px; border: 4px solid #4a3f35; background: #fff;
+  padding: 0; box-shadow: var(--schatten); }
+.weg-wuerfel svg { width: 100%; height: 100%; display: block; }
+.weg-wuerfel .menge-punkt.weg { fill: none; stroke: #c7b08a; stroke-width: 4; }
+.weg-wuerfel.dran { animation: warten-puls 1.6s ease-in-out infinite; }
+.weg-wuerfel.rollt { animation: wackeln 0.6s ease; }
+.weg-teddy { font-size: min(4.4rem, 12dvh); opacity: 0.55; transition: opacity 0.3s, transform 0.3s; }
+.weg-teddy.dran { opacity: 1; transform: scale(1.12); }
+.kachel-weg { display: grid; justify-items: center; gap: 4px; width: 80%; }
+.kachel-weg .k-kaefer { font-size: 0.42em; line-height: 1; }
+.kachel-weg .k-felder { display: flex; gap: 3px; width: 100%; }
+.kachel-weg .k-felder span { flex: 1; border: 2px solid #c7b08a; border-radius: 6px; background: #fff; padding: 2px; }
+.kachel-weg .k-felder svg { width: 100%; height: auto; display: block; }
+@media (prefers-reduced-motion: reduce) { .kaefer { transition: none; } .weg-wuerfel.dran { animation: none; box-shadow: 0 0 0 6px var(--akzent-hell); } }

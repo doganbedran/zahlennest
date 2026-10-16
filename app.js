@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 22;
+const APP_VERSION = 23;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -151,7 +151,7 @@ function kindBildHtml(k) {
 
 // Reihenfolge = Reihenfolge im Konzept (so werden sie nach und nach gebaut und freigeschaltet).
 // Montessori: ein Material kommt erst ins Regal, wenn es gezeigt wurde. Gespeichert wird, was AUSGEBLENDET ist.
-const ALLE_SPIELE = ['wieviele', 'mehr', 'korb', 'trommel', 'holmir', 'ziffern', 'welche', 'faecher', 'jedem', 'huepfen'];
+const ALLE_SPIELE = ['wieviele', 'mehr', 'korb', 'trommel', 'holmir', 'ziffern', 'welche', 'faecher', 'jedem', 'huepfen', 'weg'];
 const START_REGAL = ['wieviele'];
 const START_AUS = ALLE_SPIELE.filter((id) => !START_REGAL.includes(id));
 // Für Eltern: was jedes Spiel tut (die Kacheln zeigen den Kindern nur ein Bild)
@@ -166,6 +166,7 @@ const SPIEL_INFO = {
   faecher: 'Zur Ziffer selbst die Menge legen, die Null bleibt leer (nach „Welche Zahl?“, eher ab 4)',
   jedem: 'Jedem Tier einen Teller hinschieben: eins zu eins, „gleich viele“ (ab 3)',
   huepfen: 'Abzählvers: den Frosch von Stein zu Stein schieben, die Zahlen der Reihe nach (bis 5, auf Wunsch bis 10)',
+  weg: 'Zahlenweg 1–10: mit dem Teddy abwechselnd würfeln, gemeinsam ins Ziel (eher ab 4)',
 };
 // Fertige Spiele: id -> Startfunktion. Was hier fehlt, erscheint weder auf der Startseite noch im Regal.
 const SPIELE = {};
@@ -226,9 +227,9 @@ function spieleZeigen() {
     if (zeigen) sichtbar++;
   });
   $('#home-leer').hidden = sichtbar > 0;
-  // Hochkant 2 Spalten (ab 7 Kacheln 3), quer 4 (ab 9 Kacheln 5) – so passt alles ohne Blättern
+  // Hochkant 2 Spalten (ab 7 Kacheln 3), quer höchstens 2 Reihen (4 bis 7 Spalten) – so passt alles ohne Blättern
   const quer = innerWidth > innerHeight;
-  const spalten = Math.max(1, Math.min(sichtbar, quer ? (sichtbar > 8 ? 5 : 4) : (sichtbar > 6 ? 3 : 2)));
+  const spalten = Math.max(1, Math.min(sichtbar, quer ? Math.min(7, Math.max(4, Math.ceil(sichtbar / 2))) : (sichtbar > 6 ? 3 : 2)));
   const raster = $('#home .spiele-raster');
   raster.style.setProperty('--spalten', spalten);
   raster.style.setProperty('--reihen', Math.max(1, Math.ceil(sichtbar / spalten)));
@@ -408,6 +409,7 @@ window.addEventListener('popstate', () => {
   faecherStoppen();
   jedemStoppen();
   huepfenStoppen();
+  wegStoppen();
   studioAbbrechen();
   studioMikrofonZu();
   const ziel = (history.state && history.state.screen) || 'home';
@@ -3849,6 +3851,291 @@ $('#btn-huepfen-laut').addEventListener('click', () => {
   hpAnsage(hp.nummer, 'huepfen-du').then((ok) => { if (ok) { hp.gesperrt = false; hpHilfeAbwarten(hp.nummer); } });
 });
 window.addEventListener('resize', () => { if ($('#huepfen').classList.contains('active') && !hp.auftrag && hp.steine.length) hpAnordnen(); });
+
+// ---------- Zahlenweg (ab 4): gemeinsam auf einem geraden Weg von 1 bis 10 ----------
+// Nach Ramani & Siegler (2008): ein gerades, durchnummeriertes Brett stärkt Zählen, Ziffern und Größenvorstellung.
+// Ein Käfer, zwei Mitspieler, die abwechselnd würfeln: das Kind und der Teddy – sie bringen den Käfer gemeinsam ins
+// Ziel (kein Gewinner, kein Vergleich). Der Würfel hat nur 1 oder 2 Punkte. Beim Ziehen sagt die Stimme die Zahl jedes
+// Feldes („vier, fünf“). Das Kind schiebt den Käfer Feld für Feld (nur das nächste Feld zählt), der Teddy zieht selbst.
+// Zum Schluss in echt: „Zählt zusammen die Treppenstufen, wenn ihr hochgeht!“
+const WEG_FELDER = 10;
+const WEG_ZEIT = { wurf: 700, teddySchritt: 900, wechsel: 900, hilfe: 12000, daumen: 6000, auftragNochmal: 18000 };
+const wg = { feld: 0, wurf: 0, rest: 0, dran: 'kind', ziehen: null, gesperrt: true, timer: null, nummer: 0, fertig: false,
+  inEcht: false, auftrag: false, mass: null, sprech: { kette: Promise.resolve(), offen: 0 } };
+const wgBausteine = spielBausteine('weg', wg);
+const { aktuell: wgAktuell, ansage: wgAnsage } = wgBausteine;
+const WUERFEL_SEITE = { 1: [[50, 50]], 2: [[30, 30], [70, 70]] };
+
+function wegStoppen() {
+  wgBausteine.stoppen();
+  wg.ziehen = null;
+}
+
+// Gerader Weg von links nach rechts (auch hochkant), Felder gleich groß; Würfel und Teddy darunter
+function wgMasse() {
+  const feld = $('#weg-feld');
+  const W = feld.clientWidth, H = feld.clientHeight;
+  const F = Math.min(84, (W - 24) / WEG_FELDER - 4);
+  const x0 = (W - WEG_FELDER * (F + 4) + 4) / 2;
+  const y = Math.min(H * 0.38, H / 2 - F);
+  return { W, H, F, x0, y, mitte: (i) => [x0 + i * (F + 4) + F / 2, y + F / 2] };
+}
+
+function wgKaeferSetzen(x, y) {
+  const { F } = wg.mass;
+  const g = Math.max(40, Math.min(F * 0.8, 56));
+  // Käfer sitzt über dem Feld (die Zahl bleibt sichtbar)
+  wg.kaefer.style.transform = `translate(${x - g / 2}px, ${y - F / 2 - g * 0.9}px)`;
+  wg.kaefer.dataset.x = x;
+  wg.kaefer.dataset.y = y;
+}
+
+// Käfer auf sein Feld (0 = vor dem ersten Feld, am Start)
+function wgKaeferAufFeld() {
+  const { F, mitte } = wg.mass;
+  if (wg.feld === 0) { const [x, y] = mitte(0); wgKaeferSetzen(Math.max(22, x - F - 6), y); return; }
+  wgKaeferSetzen(...mitte(wg.feld - 1));
+}
+
+function wgAnordnen() {
+  const feld = $('#weg-feld');
+  if (!feld.clientWidth || !wg.kaefer) return;
+  wg.mass = wgMasse();
+  const { F, x0, y } = wg.mass;
+  feld.querySelectorAll('.weg-feld').forEach((el, i) => Object.assign(el.style, { left: `${x0 + i * (F + 4)}px`, top: `${y}px`, width: `${F}px`, height: `${F}px` }));
+  const g = Math.max(40, Math.min(F * 0.8, 56));
+  Object.assign(wg.kaefer.style, { width: `${g}px`, height: `${g}px`, fontSize: `${g * 0.8}px` });
+  wgKaeferAufFeld();
+}
+
+function wgFeldAufbauen() {
+  const feld = $('#weg-feld');
+  feld.closest('.screen').classList.remove('ruhig');
+  feld.innerHTML = Array.from({ length: WEG_FELDER }, (_, i) => `<div class="weg-feld${i === WEG_FELDER - 1 ? ' ziel' : ''}">`
+    + `${i === WEG_FELDER - 1 ? zifferSvg(1) + zifferSvg(0) : zifferSvg(i + 1)}</div>`).join('')
+    + '<div class="weg-unten"><button class="weg-wuerfel" aria-label="Würfeln"></button><div class="weg-teddy" aria-hidden="true">🧸</div></div>';
+  wg.kaefer = document.createElement('div');
+  wg.kaefer.className = 'kaefer';
+  wg.kaefer.textContent = '🐞';
+  wg.kaefer.style.transition = 'none';
+  feld.appendChild(wg.kaefer);
+  wgAnordnen();
+  void feld.offsetWidth;
+  wg.kaefer.style.transition = '';
+  wgWuerfelZeigen(0);
+  feld.querySelector('.weg-wuerfel').addEventListener('click', () => wgGewuerfelt());
+}
+
+const wgFelder = () => [...document.querySelectorAll('#weg-feld .weg-feld')];
+
+// Würfelbild: 0 = leer; übrige Schritte = volle Punkte, gegangene = hohl
+function wgWuerfelZeigen(n, rest = n) {
+  const w = $('#weg-feld .weg-wuerfel');
+  if (!w) return;
+  w.innerHTML = `<svg viewBox="0 0 100 100" aria-hidden="true">${(WUERFEL_SEITE[n] || []).map(([x, y], i) =>
+    `<circle class="menge-punkt${i >= rest ? ' weg' : ''}" cx="${x}" cy="${y}" r="13"/>`).join('')}</svg>`;
+}
+
+function wgDranZeigen() {
+  const feld = $('#weg-feld');
+  feld.querySelector('.weg-wuerfel').classList.toggle('dran', wg.dran === 'kind' && !wg.rest);
+  feld.querySelector('.weg-teddy').classList.toggle('dran', wg.dran === 'teddy');
+}
+
+async function wegKindDran(nr) {
+  wg.dran = 'kind';
+  wg.rest = 0;
+  wgWuerfelZeigen(0);
+  wgDranZeigen();
+  if (!(await wgAnsage(nr, 'weg-du'))) return;
+  wg.gesperrt = false;
+  wgHilfeAbwarten(nr);
+}
+
+function wgHilfeAbwarten(nr) {
+  clearTimeout(wg.timer);
+  wg.timer = setTimeout(async () => {
+    if (!wgAktuell(nr) || wg.gesperrt || wg.ziehen || wg.sprech.offen || wg.dran !== 'kind') { if (wgAktuell(nr)) wgHilfeAbwarten(nr); return; }
+    wg.gesperrt = true;
+    const ok = await wgAnsage(nr, wg.rest ? `weg-schieb-${wg.rest}` : 'weg-du');
+    if (!ok) return;
+    if (wg.rest) animieren(wg.kaefer, 'huepft'); else animieren($('#weg-feld .weg-wuerfel'), 'huepft');
+    wg.gesperrt = false;
+    wgHilfeAbwarten(nr);
+  }, WEG_ZEIT.hilfe);
+}
+
+// Würfeln: 1 oder 2 – nie über das Ziel hinaus
+const wgWurf = () => Math.min(zufall([1, 2]), WEG_FELDER - wg.feld);
+
+async function wgGewuerfelt() {
+  if (wg.gesperrt || wg.dran !== 'kind' || wg.rest || wg.auftrag) return;
+  audio();
+  const nr = wg.nummer;
+  wg.gesperrt = true;
+  clearTimeout(wg.timer);
+  const w = $('#weg-feld .weg-wuerfel');
+  animieren(w, 'rollt');
+  await warten(WEG_ZEIT.wurf);
+  if (!wgAktuell(nr)) return;
+  wg.wurf = wg.rest = wgWurf();
+  wgWuerfelZeigen(wg.wurf);
+  wgDranZeigen();
+  if (!(await wgAnsage(nr, `weg-wurf-${wg.wurf}`))) return;
+  if (!(await wgAnsage(nr, `weg-schieb-${wg.wurf}`))) return;
+  wg.gesperrt = false;
+  wgHilfeAbwarten(nr);
+}
+
+$('#weg-feld').addEventListener('pointerdown', (e) => {
+  if (!e.target.closest('.kaefer')) return;
+  e.preventDefault();
+  if (wg.ziehen || wg.gesperrt || wg.auftrag || wg.dran !== 'kind' || !wg.rest) return;
+  audio();
+  wg.ziehen = { id: e.pointerId, sx: e.clientX, sy: e.clientY, bewegt: false, feld: $('#weg-feld').getBoundingClientRect(), nr: wg.nummer };
+  wg.kaefer.classList.add('greift');
+  try { wg.kaefer.setPointerCapture(e.pointerId); } catch { /* synthetische Ereignisse (Tests) */ }
+});
+
+document.addEventListener('pointermove', (e) => {
+  const z = wg.ziehen;
+  if (!z || e.pointerId !== z.id) return;
+  if (Math.hypot(e.clientX - z.sx, e.clientY - z.sy) > 8) z.bewegt = true;
+  if (z.bewegt) wgKaeferSetzen(e.clientX - z.feld.left, e.clientY - z.feld.top + wg.mass.F * 0.5);
+});
+
+function wgLoslassen(e) {
+  const z = wg.ziehen;
+  if (!z || e.pointerId !== z.id) return;
+  wg.ziehen = null;
+  wg.kaefer.classList.remove('greift');
+  if (z.nr !== wg.nummer || !wgAktuell(z.nr)) return;
+  const [nx, ny] = wg.mass.mitte(wg.feld);
+  const x = Number(wg.kaefer.dataset.x), y = Number(wg.kaefer.dataset.y);
+  // Nur das nächste Feld zählt; sonst krabbelt der Käfer auf sein Feld zurück
+  if (z.bewegt && Math.abs(x - nx) <= wg.mass.F * 0.75 && Math.abs(y - ny) <= wg.mass.F * 1.6) { wgSchritt(z.nr); return; }
+  wgKaeferAufFeld();
+}
+document.addEventListener('pointerup', wgLoslassen);
+document.addEventListener('pointercancel', wgLoslassen);
+
+// Ein Feld weiter: die Zahl des Feldes; Würfel zeigt, wie viele noch fehlen; danach ist der Teddy dran (oder Ziel)
+async function wgSchritt(nr) {
+  wg.feld++;
+  wg.rest--;
+  wgKaeferAufFeld();
+  wgFelder()[wg.feld - 1].classList.add('besucht');
+  wgWuerfelZeigen(wg.wurf, wg.rest);
+  const k = wg.feld;
+  const sp = wg.sprech;
+  sp.offen++;
+  sp.kette = sp.kette.then(() => wgAnsage(nr, `korb-zahl-${k}`)).finally(() => { sp.offen--; });
+  if (wg.rest > 0 && wg.feld < WEG_FELDER) { wgHilfeAbwarten(nr); return; }
+  wg.gesperrt = true;
+  clearTimeout(wg.timer);
+  if (!(await sp.kette)) return;
+  wgZugFertig(nr);
+}
+
+async function wgZugFertig(nr) {
+  if (wg.feld >= WEG_FELDER) { wgZiel(nr); return; }
+  await warten(WEG_ZEIT.wechsel);
+  if (!wgAktuell(nr)) return;
+  if (wg.dran === 'kind') wgTeddyDran(nr); else wegKindDran(nr);
+}
+
+// Der Teddy würfelt und zieht selbst – die Stimme sagt die Zahl jedes Feldes
+async function wgTeddyDran(nr) {
+  wg.dran = 'teddy';
+  wg.rest = 0;
+  wgWuerfelZeigen(0);
+  wgDranZeigen();
+  if (!(await wgAnsage(nr, 'weg-teddy'))) return;
+  animieren($('#weg-feld .weg-wuerfel'), 'rollt');
+  await warten(WEG_ZEIT.wurf);
+  if (!wgAktuell(nr)) return;
+  wg.wurf = wg.rest = wgWurf();
+  wgWuerfelZeigen(wg.wurf);
+  if (!(await wgAnsage(nr, `weg-wurf-${wg.wurf}`))) return;
+  for (let i = 0; i < wg.wurf; i++) {
+    await warten(WEG_ZEIT.teddySchritt / 2);
+    if (!wgAktuell(nr)) return;
+    wg.feld++;
+    wg.rest--;
+    wgKaeferAufFeld();
+    wgFelder()[wg.feld - 1].classList.add('besucht');
+    wgWuerfelZeigen(wg.wurf, wg.rest);
+    if (!(await wgAnsage(nr, `korb-zahl-${wg.feld}`))) return;
+  }
+  wgZugFertig(nr);
+}
+
+async function wgZiel(nr) {
+  glockenspiel();
+  animieren(wg.kaefer, 'huepft');
+  wgFelder().forEach((f) => f.classList.add('leuchtet'));
+  if (!(await wgAnsage(nr, 'weg-ziel'))) return;
+  await warten(700);
+  if (wgAktuell(nr)) wegAuftrag();
+}
+
+// ----- Echte Welt: „Zählt zusammen die Treppenstufen, wenn ihr hochgeht!“ -----
+
+function wegAuftrag() {
+  wegStoppen();
+  const nr = wg.nummer;
+  wg.auftrag = true;
+  wg.fertig = false;
+  $('#btn-weg-daumen').hidden = true;
+  const treppe = '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M8 90 H30 V70 H50 V50 H70 V30 H92 V90 Z" fill="#e9d2b0" stroke="#4a3f35" stroke-width="4" stroke-linejoin="round"/></svg>';
+  inEcht({ z: wg, nr, aktuell: wgAktuell, ansage: wgAnsage, buehne: $('#weg-feld'), knopf: $('#btn-weg-daumen'),
+    karteHtml: `${treppe}<span class="karte-bild">👣</span>`, sagen: (nr2) => wgAnsage(nr2, 'weg-welt'), zeit: WEG_ZEIT });
+}
+
+async function wegAuftragErledigt(nr) {
+  const karte = inEchtBestaetigt(wg, $('#btn-weg-daumen'));
+  if (!karte) return;
+  animieren(karte, 'huepft');
+  glockenspiel();
+  await warten(400);
+  if (!(await wgAnsage(nr, 'weg-welt-fertig'))) return;
+  spielEnde('weg', wegNeu);
+}
+
+$('#btn-weg-daumen').addEventListener('click', () => { audio(); if (wg.inEcht) wegAuftragErledigt(wg.nummer); });
+
+async function wegNeu() {
+  wegStoppen();
+  Object.assign(wg, { feld: 0, wurf: 0, rest: 0, dran: 'kind', fertig: false, inEcht: false, auftrag: false,
+    sprech: { kette: Promise.resolve(), offen: 0 } });
+  $('#btn-weg-daumen').hidden = true;
+  wgFeldAufbauen();
+  const nr = wg.nummer;
+  wg.gesperrt = true;
+  if (!(await wgAnsage(nr, 'weg-start'))) return;
+  wegKindDran(nr);
+}
+
+function wegStarten() {
+  spielEndeWeg('weg');
+  zeigen('weg');
+  wegNeu();
+}
+SPIELE.weg = wegStarten;
+$('#home .spiel-btn[data-spiel="weg"]').innerHTML = '<span class="kachel-weg"><span class="k-kaefer">🐞</span><span class="k-felder">'
+  + [1, 2, 3].map((z) => `<span>${zifferSvg(z)}</span>`).join('') + '</span></span>';
+
+$('#btn-weg-home').addEventListener('click', () => { wegStoppen(); wiedergabeStoppen(); zurStartseite(); });
+$('#btn-weg-laut').addEventListener('click', () => {
+  const ende = $('#weg .spiel-ende');
+  if ((ende && !ende.hidden) || wg.fertig || wg.gesperrt || wg.ziehen || wg.sprech.offen) return;
+  audio();
+  if (wg.inEcht) { inEchtNochmal(wg); return; }
+  if (wg.dran !== 'kind') return;
+  wg.gesperrt = true;
+  wgAnsage(wg.nummer, wg.rest ? `weg-schieb-${wg.rest}` : 'weg-du').then((ok) => { if (ok) { wg.gesperrt = false; wgHilfeAbwarten(wg.nummer); } });
+});
+window.addEventListener('resize', () => { if ($('#weg').classList.contains('active') && !wg.auftrag && wg.kaefer) wgAnordnen(); });
 
 // ---------- Elternbereich (2 Sekunden gedrückt halten) ----------
 
