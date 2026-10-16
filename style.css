@@ -83,12 +83,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* Startseite: große Spiel-Kacheln, ohne Scrollen (2 Spalten hochkant, 4 im Querformat) */
 .spiele-raster {
+  /* Spalten und Reihen setzt spieleZeigen() je nach Anzahl der Kacheln (alles passt immer auf eine Seite) */
+  --spalten: 2; --reihen: 1;
+  --kachel: min(180px, calc((100vw - 40px) / var(--spalten) - 18px), calc((100dvh - 140px) / var(--reihen) - 18px));
   flex: 1; display: grid; gap: 18px; padding: 10px 0 30px;
-  grid-template-columns: repeat(2, min(170px, 40vw, 19vh)); grid-auto-rows: min(170px, 40vw, 19vh);
+  grid-template-columns: repeat(var(--spalten), var(--kachel)); grid-auto-rows: var(--kachel);
   justify-content: center; align-content: center;
-}
-@media (orientation: landscape) {
-  .spiele-raster { grid-template-columns: repeat(4, min(180px, 20vw, 32vh)); grid-auto-rows: min(180px, 20vw, 32vh); }
 }
 .spiel-btn {
   border: none; border-radius: 32px; background: var(--papier); box-shadow: var(--schatten);
@@ -545,3 +545,21 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 .stab.huepft svg { animation: ding-huepfen 0.4s ease; }
 .stab.leuchtet svg rect:first-child { fill: #f5c518; }
 @media (prefers-reduced-motion: reduce) { .stab { transition: none; } }
+
+/* ---------- Jedem eins: Tiere am Tisch, je ein Platz davor ---------- */
+#jedem, .jedem-feld { touch-action: none; overscroll-behavior: none; }
+.jedem-feld { flex: 1; position: relative; min-height: 0; }
+.jedem-tisch { position: absolute; left: 12px; right: 12px; background: #e9d2b0; border: 4px solid #b98a5a; border-radius: 18px; }
+.jedem-tier { position: absolute; display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 1; }
+.jedem-tier.huepft { animation: huepfen 0.6s ease; }
+.jedem-platz { position: absolute; border: 3px dashed #b98a5a; border-radius: 50%; background: rgba(255, 255, 255, 0.35); }
+.jedem-platz.pulsiert { animation: warten-puls 1.6s ease-in-out 2; }
+.jedem-ding { position: absolute; left: 0; top: 0; touch-action: none; z-index: 2; transition: transform 0.28s ease-out; }
+.jedem-ding svg { width: 100%; height: 100%; display: block; transition: transform 0.15s; }
+.jedem-ding.greift { transition: none; z-index: 5; }
+.jedem-ding.greift svg { transform: scale(1.1); }
+.jedem-ding.huepft svg { animation: ding-huepfen 0.4s ease; }
+.jedem-ding.leuchtet svg { filter: drop-shadow(0 0 6px #f5c518); }
+.kachel-jedem { display: grid; grid-template-columns: 1fr 1fr; width: 76%; font-size: 2.2rem; text-align: center; line-height: 1.1; }
+.kachel-jedem .k-ding svg { width: 70%; height: auto; }
+@media (prefers-reduced-motion: reduce) { .jedem-ding { transition: none; } }

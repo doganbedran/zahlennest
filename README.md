@@ -47,6 +47,9 @@ hinzufügen“. Elternbereich: ⚙️ oben rechts 2 Sekunden halten. Fragen und 
   hinein.“ Das Kind schiebt Stäbchen ins Fach (Zahlwort je Ankommen, volles Fach nimmt keins mehr), die Null bleibt
   leer; im Vorrat liegen genau so viele Stäbchen wie nötig. Zum Schluss: „Hol drei Bausteine und leg sie neben die
   Drei!“. Gleiche Gruppen wie beim Nachspuren.
+- 🐻 **Jedem eins** (ab 3) – eins zu eins ohne Zählen: Kuscheltiere sitzen am Tisch, das Kind schiebt jedem einen
+  Teller (dann Becher, dann Löffel) hin; wer etwas hat, hüpft. Erst am Ende: „Drei Tiere, drei Becher – gleich viele!“.
+  Zum Schluss: „Deck den Tisch: Leg für jeden einen Löffel hin!“
 
 Alle Spiele enden gleich: Das Spiel macht den Auftrag einmal vor, dann „Jetzt in echt!“ – der Bildschirm wird ruhig
 (👐, kleine Erinnerungskarte), das Kind macht es mit echten Dingen; ein Erwachsener tippt 👍, dann zählt die App mit.

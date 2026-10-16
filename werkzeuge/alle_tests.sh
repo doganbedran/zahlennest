@@ -57,6 +57,10 @@ LAEUFE=(
   "faecher-klein|tests/faecher.html|360,640|90"
   "faecher-tab|tests/faecher.html|1280,800|90"
   "faecher-quer|tests/faecher.html|860,412|90"
+  "jedem|tests/jedem.html|412,860|90"
+  "jedem-klein|tests/jedem.html|360,640|90"
+  "jedem-tab|tests/jedem.html|1280,800|90"
+  "jedem-quer|tests/jedem.html|860,412|90"
   "sicherheit|tests/sicherheit.html|412,860|60"
   "offline|tests/offline.html|412,860|60"
 )

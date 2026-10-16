@@ -258,4 +258,13 @@ const ANSAGEN = {
   'faecher-welt-8': ['Hol acht Bausteine und leg sie neben die Acht!', 'Fächer füllen'],
   'faecher-welt-9': ['Hol neun Bausteine und leg sie neben die Neun!', 'Fächer füllen'],
   'faecher-welt-fertig': ['Du hast Bausteine zur Zahl gelegt!', 'Fächer füllen'],
+  // Jedem eins: keine Zahlwörter beim Hinlegen, erst am Ende „Drei Tiere, drei Teller – gleich viele!“
+  'jedem-start-teller': ['Jedes Tier bekommt einen Teller.', 'Jedem eins'],
+  'jedem-start-becher': ['Jedes Tier bekommt einen Becher.', 'Jedem eins'],
+  'jedem-start-loeffel': ['Jedes Tier bekommt einen Löffel.', 'Jedem eins'],
+  'jedem-fertig-2-teller': ['Jeder hat einen Teller. Zwei Tiere, zwei Teller – gleich viele!', 'Jedem eins'],
+  'jedem-fertig-3-becher': ['Jeder hat einen Becher. Drei Tiere, drei Becher – gleich viele!', 'Jedem eins'],
+  'jedem-fertig-4-loeffel': ['Jeder hat einen Löffel. Vier Tiere, vier Löffel – gleich viele!', 'Jedem eins'],
+  'jedem-welt': ['Deck den Tisch: Leg für jeden einen Löffel hin!', 'Jedem eins'],
+  'jedem-welt-fertig': ['Jeder hat einen Löffel. Danke fürs Tischdecken!', 'Jedem eins'],
 };

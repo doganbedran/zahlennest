@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 20;
+const APP_VERSION = 21;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -151,7 +151,7 @@ function kindBildHtml(k) {
 
 // Reihenfolge = Reihenfolge im Konzept (so werden sie nach und nach gebaut und freigeschaltet).
 // Montessori: ein Material kommt erst ins Regal, wenn es gezeigt wurde. Gespeichert wird, was AUSGEBLENDET ist.
-const ALLE_SPIELE = ['wieviele', 'mehr', 'korb', 'trommel', 'holmir', 'ziffern', 'welche', 'faecher'];
+const ALLE_SPIELE = ['wieviele', 'mehr', 'korb', 'trommel', 'holmir', 'ziffern', 'welche', 'faecher', 'jedem'];
 const START_REGAL = ['wieviele'];
 const START_AUS = ALLE_SPIELE.filter((id) => !START_REGAL.includes(id));
 // Für Eltern: was jedes Spiel tut (die Kacheln zeigen den Kindern nur ein Bild)
@@ -164,6 +164,7 @@ const SPIEL_INFO = {
   ziffern: 'Ziffern mit dem Finger nachfahren, dann die Menge sehen (eher ab 4)',
   welche: 'Ziffern wiedererkennen: „Wo ist die Drei?“ (nach dem Nachspuren, eher ab 4)',
   faecher: 'Zur Ziffer selbst die Menge legen, die Null bleibt leer (nach „Welche Zahl?“, eher ab 4)',
+  jedem: 'Jedem Tier einen Teller hinschieben: eins zu eins, „gleich viele“ (ab 3)',
 };
 // Fertige Spiele: id -> Startfunktion. Was hier fehlt, erscheint weder auf der Startseite noch im Regal.
 const SPIELE = {};
@@ -224,6 +225,12 @@ function spieleZeigen() {
     if (zeigen) sichtbar++;
   });
   $('#home-leer').hidden = sichtbar > 0;
+  // Hochkant 2 Spalten (ab 7 Kacheln 3), quer 4 (ab 9 Kacheln 5) – so passt alles ohne Blättern
+  const quer = innerWidth > innerHeight;
+  const spalten = Math.max(1, Math.min(sichtbar, quer ? (sichtbar > 8 ? 5 : 4) : (sichtbar > 6 ? 3 : 2)));
+  const raster = $('#home .spiele-raster');
+  raster.style.setProperty('--spalten', spalten);
+  raster.style.setProperty('--reihen', Math.max(1, Math.ceil(sichtbar / spalten)));
   const k = aktivesKind();
   $('#btn-kind').hidden = !k;
   $('#btn-kind').innerHTML = k ? kindBildHtml(k) : '';
@@ -232,6 +239,7 @@ function spieleZeigen() {
 document.querySelectorAll('#home .spiel-btn').forEach((btn) => {
   btn.addEventListener('click', () => spielStarten(btn.dataset.spiel));
 });
+window.addEventListener('resize', () => { if ($('#home').classList.contains('active')) spieleZeigen(); });
 
 function spielStarten(id) {
   audio();
@@ -397,6 +405,7 @@ window.addEventListener('popstate', () => {
   ziffernStoppen();
   welcheStoppen();
   faecherStoppen();
+  jedemStoppen();
   studioAbbrechen();
   studioMikrofonZu();
   const ziel = (history.state && history.state.screen) || 'home';
@@ -3356,6 +3365,252 @@ $('#btn-faecher-laut').addEventListener('click', () => {
   faAnsage(fa.nummer, `faecher-leg-${faFach().ziffer}`).then((ok) => { if (ok) { fa.gesperrt = false; faHilfeAbwarten(fa.nummer); } });
 });
 window.addEventListener('resize', () => { if ($('#faecher').classList.contains('active') && !fa.auftrag) faAnordnen(); });
+
+// ---------- Jedem eins (ab 3): eins zu eins zuordnen, ganz ohne Zählen ----------
+// Kuscheltiere sitzen am Tisch, das Kind schiebt jedem einen Teller hin (dann Becher, dann Löffel – Wörter mit gleichem
+// Plural). Ein Teller bleibt nur auf einem freien Platz; wer etwas bekommt, hüpft vor Freude (Selbstkontrolle ohne
+// „falsch“). Im Vorrat liegen genau so viele Dinge wie Tiere: am Ende hat jeder eins, keins bleibt übrig.
+// Erst ganz am Ende fällt eine Zahl: „Jeder hat einen Teller. Drei Tiere, drei Teller – gleich viele!“
+// Zum Schluss in echt: „Deck den Tisch: Leg für jeden einen Löffel hin!“
+const JEDEM_RUNDEN = [{ n: 2, ding: 'teller' }, { n: 3, ding: 'becher' }, { n: 4, ding: 'loeffel' }];
+const JEDEM_TIERE = ['🐻', '🐰', '🐸', '🦊'];
+const JEDEM_ZEIT = { hilfe: 12000, rundenPause: 900, daumen: 6000, auftragNochmal: 16000 };
+const JEDEM_DINGE = {
+  teller: '<svg viewBox="0 0 100 100" aria-hidden="true"><ellipse cx="50" cy="54" rx="46" ry="30" fill="#ffffff" stroke="#c7b08a" stroke-width="5"/>'
+    + '<ellipse cx="50" cy="54" rx="30" ry="18" fill="#f6efe3" stroke="#e3d8c6" stroke-width="3"/></svg>',
+  becher: HOL_DINGE.becher.svg,
+  loeffel: HOL_DINGE.loeffel.svg,
+};
+const je = { runde: 0, plaetze: [], dinge: [], ziehen: null, gesperrt: true, timer: null, nummer: 0, fertig: false,
+  inEcht: false, auftrag: false, mass: null };
+const jeBausteine = spielBausteine('jedem', je);
+const { aktuell: jeAktuell, ansage: jeAnsage } = jeBausteine;
+const jeRunde = () => JEDEM_RUNDEN[je.runde];
+
+function jedemStoppen() {
+  jeBausteine.stoppen();
+  je.ziehen = null;
+}
+
+function jeRundenZeichnen() {
+  $('#jedem-runden').innerHTML = `<span class="gruppe">${
+    JEDEM_RUNDEN.map((_, i) => `<span class="${i < je.runde ? 'voll' : ''}"></span>`).join('')}</span>`;
+}
+
+// Maße: Tiere oben am Tisch (je ein Platz davor), Vorrat unten; alles gleich groß, gleicher Abstand
+function jeMasse() {
+  const feld = $('#jedem-feld');
+  const W = feld.clientWidth, H = feld.clientHeight;
+  const n = je.plaetze.length;
+  const S = Math.min(96, (W - 40) / (n + 1), H * 0.16);
+  const abstand = Math.min(S * 1.5, (W - 32 - S) / Math.max(1, n - 1));
+  const x0 = W / 2 - ((n - 1) * abstand) / 2;
+  const tierY = Math.max(S * 0.7, H * 0.14);
+  const platzY = tierY + S * 1.15;
+  const vorratY = Math.min(H - S - (W > H ? 20 : 96), platzY + S * 2.4);
+  return { W, H, S, abstand, x0, tierY, platzY, vorratY, tischOben: tierY + S * 0.55, tischUnten: platzY + S * 0.7 };
+}
+
+function jeDingSetzen(d, x, y) {
+  const { W, H, S } = je.mass;
+  d.x = Math.max(S / 2, Math.min(W - S / 2, x));
+  d.y = Math.max(S / 2, Math.min(H - S / 2, y));
+  d.el.style.transform = `translate(${d.x - S / 2}px, ${d.y - S / 2}px)`;
+}
+
+function jeAnordnen() {
+  const feld = $('#jedem-feld');
+  if (!feld.clientWidth || !je.plaetze.length) return;
+  je.mass = jeMasse();
+  const { S, abstand, x0, tierY, platzY, vorratY, tischOben, tischUnten, W } = je.mass;
+  Object.assign(feld.querySelector('.jedem-tisch').style, { top: `${tischOben}px`, height: `${tischUnten - tischOben}px` });
+  je.plaetze.forEach((p, i) => {
+    p.x = x0 + i * abstand;
+    p.y = platzY;
+    Object.assign(p.tierEl.style, { left: `${p.x - S / 2}px`, top: `${tierY - S / 2}px`, width: `${S}px`, height: `${S}px`, fontSize: `${S * 0.8}px` });
+    Object.assign(p.el.style, { left: `${p.x - S * 0.52}px`, top: `${p.y - S * 0.42}px`, width: `${S * 1.04}px`, height: `${S * 0.84}px` });
+  });
+  feld.querySelectorAll('.jedem-ding').forEach((el) => Object.assign(el.style, { width: `${S}px`, height: `${S}px` }));
+  const frei = je.dinge.filter((d) => !d.platz);
+  const vAbstand = Math.min(S * 1.5, (W - 32 - S) / Math.max(1, frei.length - 1));
+  frei.forEach((d, i) => jeDingSetzen(d, W / 2 - ((frei.length - 1) * vAbstand) / 2 + i * vAbstand, vorratY));
+  je.plaetze.forEach((p) => { if (p.ding) jeDingSetzen(p.ding, p.x, p.y); });
+}
+
+async function jedemNeueRunde() {
+  jedemStoppen();
+  const nr = je.nummer;
+  const { n, ding } = jeRunde();
+  const feld = $('#jedem-feld');
+  feld.closest('.screen').classList.remove('ruhig');
+  feld.innerHTML = '<div class="jedem-tisch"></div>';
+  je.plaetze = mischen(JEDEM_TIERE).slice(0, n).map((tier) => {
+    const tierEl = document.createElement('div');
+    tierEl.className = 'jedem-tier';
+    tierEl.textContent = tier;
+    const el = document.createElement('div');
+    el.className = 'jedem-platz';
+    feld.append(tierEl, el);
+    return { tierEl, el, ding: null, x: 0, y: 0 };
+  });
+  je.dinge = Array.from({ length: n }, () => {
+    const el = document.createElement('div');
+    el.className = 'jedem-ding';
+    el.style.transition = 'none';
+    el.innerHTML = JEDEM_DINGE[ding];
+    feld.appendChild(el);
+    const d = { el, x: 0, y: 0, platz: null };
+    el.ding = d;
+    return d;
+  });
+  jeAnordnen();
+  void feld.offsetWidth;
+  je.dinge.forEach((d) => { d.el.style.transition = ''; });
+  if (!(await jeAnsage(nr, `jedem-start-${ding}`))) return;
+  je.gesperrt = false;
+  jeHilfeAbwarten(nr);
+}
+
+// Lange nichts hingelegt: Auftrag nochmal, ein freier Platz pulsiert sanft (kein Zeitdruck)
+function jeHilfeAbwarten(nr) {
+  clearTimeout(je.timer);
+  je.timer = setTimeout(async () => {
+    if (!jeAktuell(nr) || je.gesperrt || je.ziehen) { jeHilfeAbwarten(nr); return; }
+    je.gesperrt = true;
+    if (!(await jeAnsage(nr, `jedem-start-${jeRunde().ding}`))) return;
+    je.gesperrt = false;
+    const frei = je.plaetze.find((p) => !p.ding);
+    if (frei) animieren(frei.el, 'pulsiert');
+    jeHilfeAbwarten(nr);
+  }, JEDEM_ZEIT.hilfe);
+}
+
+$('#jedem-feld').addEventListener('pointerdown', (e) => {
+  const el = e.target.closest('.jedem-ding');
+  if (!el || !el.ding || el.ding.platz) return;
+  e.preventDefault();
+  if (je.ziehen || je.gesperrt || je.auftrag) return;
+  audio();
+  je.ziehen = { d: el.ding, id: e.pointerId, sx: e.clientX, sy: e.clientY, bewegt: false, feld: $('#jedem-feld').getBoundingClientRect(), nr: je.nummer };
+  el.classList.add('greift');
+  try { el.setPointerCapture(e.pointerId); } catch { /* synthetische Ereignisse (Tests) */ }
+});
+
+document.addEventListener('pointermove', (e) => {
+  const z = je.ziehen;
+  if (!z || e.pointerId !== z.id) return;
+  if (Math.hypot(e.clientX - z.sx, e.clientY - z.sy) > 8) z.bewegt = true;
+  if (z.bewegt) jeDingSetzen(z.d, e.clientX - z.feld.left, e.clientY - z.feld.top - 30);
+});
+
+function jeLoslassen(e) {
+  const z = je.ziehen;
+  if (!z || e.pointerId !== z.id) return;
+  je.ziehen = null;
+  z.d.el.classList.remove('greift');
+  if (z.nr !== je.nummer || !jeAktuell(z.nr)) return;
+  if (!z.bewegt) { animieren(z.d.el, 'huepft'); return; }
+  // Nächster freier Platz in Reichweite (großzügig: bis eine Ding-Breite daneben)
+  const { S, tischUnten } = je.mass;
+  const frei = je.plaetze.filter((p) => !p.ding).map((p) => ({ p, a: Math.hypot(p.x - z.d.x, p.y - z.d.y) }))
+    .sort((a, b) => a.a - b.a)[0];
+  if (frei && frei.a <= S * 1.1) { jeHinlegen(z.d, frei.p); return; }
+  // Daneben oder auf einem belegten Platz: bleibt liegen, aber unterhalb des Tisches (nichts liegt halb auf einem Platz)
+  if (z.d.y < tischUnten + S / 2) jeDingSetzen(z.d, z.d.x, tischUnten + S / 2 + 8);
+}
+document.addEventListener('pointerup', jeLoslassen);
+document.addEventListener('pointercancel', jeLoslassen);
+
+async function jeHinlegen(d, p) {
+  const nr = je.nummer;
+  d.platz = p;
+  p.ding = d;
+  jeDingSetzen(d, p.x, p.y);
+  animieren(p.tierEl, 'huepft');   // Freude: das Tier hat seins
+  jeKlang(je.plaetze.filter((x) => x.ding).length);
+  if (je.plaetze.some((x) => !x.ding)) { jeHilfeAbwarten(nr); return; }
+  // Jeder hat eins: erst jetzt die Zahl – „Drei Tiere, drei Teller – gleich viele!“
+  je.gesperrt = true;
+  clearTimeout(je.timer);
+  await warten(500);
+  if (!jeAktuell(nr)) return;
+  glockenspiel();
+  je.plaetze.forEach((x) => x.ding.el.classList.add('leuchtet'));
+  const { n, ding } = jeRunde();
+  if (!(await jeAnsage(nr, `jedem-fertig-${n}-${ding}`))) return;
+  je.runde++;
+  jeRundenZeichnen();
+  await warten(JEDEM_ZEIT.rundenPause);
+  if (!jeAktuell(nr)) return;
+  if (je.runde < JEDEM_RUNDEN.length) jedemNeueRunde(); else jedemAuftrag();
+}
+
+// Kleiner heller Ton beim Hinlegen (kein Zahlwort: hier geht es ums Zuordnen, nicht ums Zählen)
+function jeKlang(k) {
+  const c = audio();
+  if (!c) return;
+  const osc = c.createOscillator(), gain = c.createGain(), t = c.currentTime;
+  osc.frequency.value = 660 + k * 90;
+  gain.gain.setValueAtTime(0.16, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+  osc.connect(gain).connect(c.destination);
+  osc.start(t);
+  osc.stop(t + 0.24);
+}
+
+// ----- Echte Welt: „Deck den Tisch: Leg für jeden einen Löffel hin!“ -----
+
+function jedemAuftrag() {
+  jedemStoppen();
+  const nr = je.nummer;
+  je.auftrag = true;
+  je.fertig = false;
+  $('#btn-jedem-daumen').hidden = true;
+  inEcht({ z: je, nr, aktuell: jeAktuell, ansage: jeAnsage, buehne: $('#jedem-feld'), knopf: $('#btn-jedem-daumen'),
+    karteHtml: `<span class="karte-ding">${JEDEM_DINGE.teller}</span><span class="karte-ding">${JEDEM_DINGE.loeffel}</span>`,
+    sagen: (nr2) => jeAnsage(nr2, 'jedem-welt'), zeit: JEDEM_ZEIT, karteKlasse: 'gross' });
+}
+
+async function jedemAuftragErledigt(nr) {
+  const karte = inEchtBestaetigt(je, $('#btn-jedem-daumen'));
+  if (!karte) return;
+  animieren(karte, 'huepft');
+  glockenspiel();
+  await warten(400);
+  if (!(await jeAnsage(nr, 'jedem-welt-fertig'))) return;
+  spielEnde('jedem', jedemNeu);
+}
+
+$('#btn-jedem-daumen').addEventListener('click', () => { audio(); if (je.inEcht) jedemAuftragErledigt(je.nummer); });
+
+function jedemNeu() {
+  jedemStoppen();
+  Object.assign(je, { runde: 0, fertig: false, inEcht: false, auftrag: false });
+  $('#btn-jedem-daumen').hidden = true;
+  jeRundenZeichnen();
+  jedemNeueRunde();
+}
+
+function jedemStarten() {
+  spielEndeWeg('jedem');
+  zeigen('jedem');
+  jedemNeu();
+}
+SPIELE.jedem = jedemStarten;
+// Kachel: zwei Tiere, jedes mit seinem Teller
+$('#home .spiel-btn[data-spiel="jedem"]').innerHTML = '<span class="kachel-jedem"><span>🐻</span><span>🐰</span>'
+  + `<span class="k-ding">${JEDEM_DINGE.teller}</span><span class="k-ding">${JEDEM_DINGE.teller}</span></span>`;
+
+$('#btn-jedem-home').addEventListener('click', () => { jedemStoppen(); wiedergabeStoppen(); zurStartseite(); });
+$('#btn-jedem-laut').addEventListener('click', () => {
+  const ende = $('#jedem .spiel-ende');
+  if ((ende && !ende.hidden) || je.fertig || je.gesperrt || je.ziehen) return;
+  audio();
+  if (je.inEcht) { inEchtNochmal(je); return; }
+  je.gesperrt = true;
+  jeAnsage(je.nummer, `jedem-start-${jeRunde().ding}`).then((ok) => { if (ok) { je.gesperrt = false; jeHilfeAbwarten(je.nummer); } });
+});
+window.addEventListener('resize', () => { if ($('#jedem').classList.contains('active') && !je.auftrag) jeAnordnen(); });
 
 // ---------- Elternbereich (2 Sekunden gedrückt halten) ----------
 
