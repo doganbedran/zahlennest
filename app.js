@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 23;
+const APP_VERSION = 24;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -151,7 +151,7 @@ function kindBildHtml(k) {
 
 // Reihenfolge = Reihenfolge im Konzept (so werden sie nach und nach gebaut und freigeschaltet).
 // Montessori: ein Material kommt erst ins Regal, wenn es gezeigt wurde. Gespeichert wird, was AUSGEBLENDET ist.
-const ALLE_SPIELE = ['wieviele', 'mehr', 'korb', 'trommel', 'holmir', 'ziffern', 'welche', 'faecher', 'jedem', 'huepfen', 'weg'];
+const ALLE_SPIELE = ['wieviele', 'mehr', 'korb', 'trommel', 'holmir', 'ziffern', 'welche', 'faecher', 'jedem', 'huepfen', 'weg', 'nester', 'treppe'];
 const START_REGAL = ['wieviele'];
 const START_AUS = ALLE_SPIELE.filter((id) => !START_REGAL.includes(id));
 // Für Eltern: was jedes Spiel tut (die Kacheln zeigen den Kindern nur ein Bild)
@@ -167,6 +167,8 @@ const SPIEL_INFO = {
   jedem: 'Jedem Tier einen Teller hinschieben: eins zu eins, „gleich viele“ (ab 3)',
   huepfen: 'Abzählvers: den Frosch von Stein zu Stein schieben, die Zahlen der Reihe nach (bis 5, auf Wunsch bis 10)',
   weg: 'Zahlenweg 1–10: mit dem Teddy abwechselnd würfeln, gemeinsam ins Ziel (eher ab 4)',
+  nester: 'Eier auf zwei Nester verteilen: „zwei hier und eins da – zusammen drei“ (eher ab 4½)',
+  treppe: 'Punktstangen 1–5 zu einer Treppe ordnen: jede Stufe hat einen mehr (eher ab 4½)',
 };
 // Fertige Spiele: id -> Startfunktion. Was hier fehlt, erscheint weder auf der Startseite noch im Regal.
 const SPIELE = {};
@@ -410,6 +412,8 @@ window.addEventListener('popstate', () => {
   jedemStoppen();
   huepfenStoppen();
   wegStoppen();
+  nesterStoppen();
+  treppeStoppen();
   studioAbbrechen();
   studioMikrofonZu();
   const ziel = (history.state && history.state.screen) || 'home';
@@ -4136,6 +4140,476 @@ $('#btn-weg-laut').addEventListener('click', () => {
   wgAnsage(wg.nummer, wg.rest ? `weg-schieb-${wg.rest}` : 'weg-du').then((ok) => { if (ok) { wg.gesperrt = false; wgHilfeAbwarten(wg.nummer); } });
 });
 window.addEventListener('resize', () => { if ($('#weg').classList.contains('active') && !wg.auftrag && wg.kaefer) wgAnordnen(); });
+
+// ---------- Zwei Nester (eher ab 4½): eine Menge zerlegen – „zwei hier und eins da, zusammen drei“ ----------
+// Im großen Nest liegen Eier (3, dann 4, dann 5). Das Kind verteilt sie, wie es mag, auf zwei kleine Nester. Liegen
+// alle, zählt die App jedes Nest und sagt: „Zwei hier und eins da. Zusammen sind es drei!“ Jede Aufteilung ist richtig
+// (kein „falsch“) – erlebt wird: die Menge bleibt gleich, egal wie man sie teilt. Bewusst ohne Plus, ohne Ziffern.
+// Zum Schluss in echt: „Nimm drei Bausteine und verteil sie auf deine zwei Hände!“
+const NESTER_RUNDEN = [3, 4, 5];
+const NESTER_ZEIT = { hilfe: 12000, rundenPause: 900, zaehlPause: 400, daumen: 6000, auftragNochmal: 16000 };
+const EI_SVG = '<svg viewBox="0 0 80 100" aria-hidden="true"><ellipse cx="40" cy="54" rx="30" ry="40" fill="#fffaf0" stroke="#c7b08a" stroke-width="5"/>'
+  + '<ellipse cx="30" cy="36" rx="7" ry="11" fill="#ffffff"/></svg>';
+const ns = { runde: 0, eier: [], ziehen: null, gesperrt: true, timer: null, nummer: 0, fertig: false, inEcht: false,
+  auftrag: false, mass: null };
+const nsBausteine = spielBausteine('nester', ns);
+const { aktuell: nsAktuell, ansage: nsAnsage, zaehlen: nsZaehlen } = nsBausteine;
+const nsN = () => NESTER_RUNDEN[ns.runde];
+
+function nesterStoppen() {
+  nsBausteine.stoppen();
+  ns.ziehen = null;
+}
+
+function nsRundenZeichnen() {
+  $('#nester-runden').innerHTML = `<span class="gruppe">${
+    NESTER_RUNDEN.map((_, i) => `<span class="${i < ns.runde ? 'voll' : ''}"></span>`).join('')}</span>`;
+}
+
+// Großes Nest oben in der Mitte, zwei kleine Nester unten links und rechts
+function nsMasse() {
+  const feld = $('#nester-feld');
+  const W = feld.clientWidth, H = feld.clientHeight;
+  const quer = W > H;
+  const S = Math.min(64, W * 0.13, H * 0.12);   // Ei
+  const gross = { x: W / 2, y: quer ? H * 0.26 : H * 0.2, w: Math.min(W * 0.8, S * 6.5), h: S * 1.8 };
+  const nestW = Math.min(W * 0.42, S * 4.2), nestH = S * 2.6;
+  const untenY = quer ? H * 0.68 : H * 0.6;
+  const links = { x: W / 2 - nestW / 2 - Math.min(24, W * 0.04), y: untenY, w: nestW, h: nestH };
+  const rechts = { x: W / 2 + nestW / 2 + Math.min(24, W * 0.04), y: untenY, w: nestW, h: nestH };
+  return { W, H, S, gross, nester: [links, rechts] };
+}
+
+// Plätze in einem Nest: nebeneinander, bei vielen in zwei Reihen (gleicher Abstand)
+function nsPlatz(nest, i, anzahl) {
+  const { S } = ns.mass;
+  const proReihe = Math.max(1, Math.floor((nest.w - 12) / (S * 0.95)));
+  const reihen = Math.ceil(anzahl / proReihe);
+  const r = Math.floor(i / proReihe), inReihe = Math.min(proReihe, anzahl - r * proReihe);
+  const k = i % proReihe;
+  return [nest.x - ((inReihe - 1) * S * 0.95) / 2 + k * S * 0.95, nest.y - ((reihen - 1) * S * 1.1) / 2 + r * S * 1.1];
+}
+
+function nsEiSetzen(e, x, y) {
+  const { W, H, S } = ns.mass;
+  e.x = Math.max(S / 2, Math.min(W - S / 2, x));
+  e.y = Math.max(S / 2, Math.min(H - S / 2, y));
+  e.el.style.transform = `translate(${e.x - S / 2}px, ${e.y - S * 0.62}px)`;
+}
+
+function nsNestZeichnen(el, n) {
+  Object.assign(el.style, { left: `${n.x - n.w / 2}px`, top: `${n.y - n.h / 2}px`, width: `${n.w}px`, height: `${n.h}px` });
+}
+
+function nsAnordnen() {
+  const feld = $('#nester-feld');
+  if (!feld.clientWidth || !ns.eier.length) return;
+  ns.mass = nsMasse();
+  const { S, gross, nester } = ns.mass;
+  nsNestZeichnen(feld.querySelector('.nest.gross'), gross);
+  feld.querySelectorAll('.nest.klein').forEach((el, i) => nsNestZeichnen(el, nester[i]));
+  ns.eier.forEach((e) => Object.assign(e.el.style, { width: `${S}px`, height: `${S * 1.25}px` }));
+  const imGrossen = ns.eier.filter((e) => e.nest === null);
+  imGrossen.forEach((e, i) => nsEiSetzen(e, ...nsPlatz(gross, i, imGrossen.length)));
+  [0, 1].forEach((k) => { const drin = ns.eier.filter((e) => e.nest === k); drin.forEach((e, i) => nsEiSetzen(e, ...nsPlatz(nester[k], i, drin.length))); });
+}
+
+async function nesterNeueRunde() {
+  nesterStoppen();
+  const nr = ns.nummer;
+  const feld = $('#nester-feld');
+  feld.closest('.screen').classList.remove('ruhig');
+  feld.innerHTML = '<div class="nest gross"></div><div class="nest klein"></div><div class="nest klein"></div>';
+  ns.eier = Array.from({ length: nsN() }, () => {
+    const el = document.createElement('div');
+    el.className = 'ei';
+    el.style.transition = 'none';
+    el.innerHTML = EI_SVG;
+    feld.appendChild(el);
+    const e = { el, x: 0, y: 0, nest: null };
+    el.ei = e;
+    return e;
+  });
+  nsAnordnen();
+  void feld.offsetWidth;
+  ns.eier.forEach((e) => { e.el.style.transition = ''; });
+  if (!(await nsAnsage(nr, `nester-start-${nsN()}`))) return;
+  ns.gesperrt = false;
+  nsHilfeAbwarten(nr);
+}
+
+function nsHilfeAbwarten(nr) {
+  clearTimeout(ns.timer);
+  ns.timer = setTimeout(async () => {
+    if (!nsAktuell(nr) || ns.gesperrt || ns.ziehen) { nsHilfeAbwarten(nr); return; }
+    ns.gesperrt = true;
+    if (!(await nsAnsage(nr, 'nester-verteil'))) return;
+    ns.gesperrt = false;
+    const e = ns.eier.find((x) => x.nest === null);
+    if (e) animieren(e.el, 'huepft');
+    nsHilfeAbwarten(nr);
+  }, NESTER_ZEIT.hilfe);
+}
+
+$('#nester-feld').addEventListener('pointerdown', (e) => {
+  const el = e.target.closest('.ei');
+  if (!el || !el.ei) return;
+  e.preventDefault();
+  if (ns.ziehen || ns.gesperrt || ns.auftrag) return;
+  audio();
+  ns.ziehen = { e: el.ei, id: e.pointerId, sx: e.clientX, sy: e.clientY, bewegt: false, feld: $('#nester-feld').getBoundingClientRect(), nr: ns.nummer };
+  el.classList.add('greift');
+  try { el.setPointerCapture(e.pointerId); } catch { /* synthetische Ereignisse (Tests) */ }
+});
+
+document.addEventListener('pointermove', (e) => {
+  const z = ns.ziehen;
+  if (!z || e.pointerId !== z.id) return;
+  if (Math.hypot(e.clientX - z.sx, e.clientY - z.sy) > 8) z.bewegt = true;
+  if (z.bewegt) nsEiSetzen(z.e, e.clientX - z.feld.left, e.clientY - z.feld.top - 30);
+});
+
+// In welchem Nest liegt das Ei? (0 = links, 1 = rechts, null = großes Nest bzw. daneben); großzügig 30 px
+function nsNestBei(x, y) {
+  const drin = (n) => Math.abs(x - n.x) <= n.w / 2 + 30 && Math.abs(y - n.y) <= n.h / 2 + 30;
+  const [l, r] = ns.mass.nester;
+  if (drin(l)) return 0;
+  if (drin(r)) return 1;
+  return null;
+}
+
+function nsLoslassen(e) {
+  const z = ns.ziehen;
+  if (!z || e.pointerId !== z.id) return;
+  ns.ziehen = null;
+  z.e.el.classList.remove('greift');
+  if (z.nr !== ns.nummer || !nsAktuell(z.nr)) return;
+  if (!z.bewegt) { animieren(z.e.el, 'huepft'); return; }
+  // Umlegen ist erlaubt (auch zurück ins große Nest): jedes Ei liegt immer in genau einem Nest
+  z.e.nest = nsNestBei(z.e.x, z.e.y);
+  nsAnordnen();
+  if (z.e.nest !== null) nsKlang();
+  if (ns.eier.some((x) => x.nest === null)) { nsHilfeAbwarten(z.nr); return; }
+  nsAlleVerteilt(z.nr);
+}
+document.addEventListener('pointerup', nsLoslassen);
+document.addEventListener('pointercancel', nsLoslassen);
+
+function nsKlang() {
+  const c = audio();
+  if (!c) return;
+  const osc = c.createOscillator(), gain = c.createGain(), t = c.currentTime;
+  osc.frequency.value = 740;
+  gain.gain.setValueAtTime(0.14, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+  osc.connect(gain).connect(c.destination);
+  osc.start(t);
+  osc.stop(t + 0.22);
+}
+
+// Alle Eier verteilt: links zählen, rechts zählen, dann „Zwei hier und eins da. Zusammen sind es drei!“
+async function nsAlleVerteilt(nr) {
+  ns.gesperrt = true;
+  clearTimeout(ns.timer);
+  await warten(NESTER_ZEIT.zaehlPause);
+  if (!nsAktuell(nr)) return;
+  const links = ns.eier.filter((e) => e.nest === 0), rechts = ns.eier.filter((e) => e.nest === 1);
+  for (const teil of [links, rechts]) {
+    if (teil.length && !(await nsZaehlen(nr, `zaehlen-${teil.length}`, teil.map((e) => e.el)))) return;
+    await warten(NESTER_ZEIT.zaehlPause);
+    if (!nsAktuell(nr)) return;
+  }
+  glockenspiel();
+  ns.eier.forEach((e) => e.el.classList.add('leuchtet'));
+  if (!(await nsAnsage(nr, `nester-${links.length}-${rechts.length}`))) return;
+  ns.runde++;
+  nsRundenZeichnen();
+  await warten(NESTER_ZEIT.rundenPause);
+  if (!nsAktuell(nr)) return;
+  if (ns.runde < NESTER_RUNDEN.length) nesterNeueRunde(); else nesterAuftrag();
+}
+
+// ----- Echte Welt: „Nimm drei Bausteine und verteil sie auf deine zwei Hände!“ -----
+
+function nesterAuftrag() {
+  nesterStoppen();
+  const nr = ns.nummer;
+  ns.auftrag = true;
+  ns.fertig = false;
+  $('#btn-nester-daumen').hidden = true;
+  inEcht({ z: ns, nr, aktuell: nsAktuell, ansage: nsAnsage, buehne: $('#nester-feld'), knopf: $('#btn-nester-daumen'),
+    karteHtml: `${korbKarteSvg(3)}<span class="karte-bild">🤲</span>`, sagen: (nr2) => nsAnsage(nr2, 'nester-welt'), zeit: NESTER_ZEIT });
+}
+
+async function nesterAuftragErledigt(nr) {
+  const karte = inEchtBestaetigt(ns, $('#btn-nester-daumen'));
+  if (!karte) return;
+  if (!(await nsAnsage(nr, 'nester-welt-zeig'))) return;
+  if (!(await nsZaehlen(nr, 'zaehlen-3', [...karte.querySelectorAll('.karte-punkt')]))) return;
+  glockenspiel();
+  await warten(400);
+  if (!(await nsAnsage(nr, 'nester-welt-fertig'))) return;
+  spielEnde('nester', nesterNeu);
+}
+
+$('#btn-nester-daumen').addEventListener('click', () => { audio(); if (ns.inEcht) nesterAuftragErledigt(ns.nummer); });
+
+function nesterNeu() {
+  nesterStoppen();
+  Object.assign(ns, { runde: 0, fertig: false, inEcht: false, auftrag: false });
+  $('#btn-nester-daumen').hidden = true;
+  nsRundenZeichnen();
+  nesterNeueRunde();
+}
+
+function nesterStarten() {
+  spielEndeWeg('nester');
+  zeigen('nester');
+  nesterNeu();
+}
+SPIELE.nester = nesterStarten;
+$('#home .spiel-btn[data-spiel="nester"]').innerHTML = '<svg class="kachel-bild" viewBox="0 0 100 100" aria-hidden="true">'
+  + '<ellipse cx="27" cy="72" rx="22" ry="11" fill="#b98a5a" stroke="#4a3f35" stroke-width="3"/><ellipse cx="73" cy="72" rx="22" ry="11" fill="#b98a5a" stroke="#4a3f35" stroke-width="3"/>'
+  + [[20, 58], [34, 58], [73, 58]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="7" ry="9" fill="#fffaf0" stroke="#c7b08a" stroke-width="2.5"/>`).join('')
+  + '<path d="M18 26 L34 40 M82 26 L66 40" stroke="#c7b08a" stroke-width="4" stroke-linecap="round"/>'
+  + '<ellipse cx="50" cy="20" rx="7" ry="9" fill="#fffaf0" stroke="#c7b08a" stroke-width="2.5"/></svg>';
+
+$('#btn-nester-home').addEventListener('click', () => { nesterStoppen(); wiedergabeStoppen(); zurStartseite(); });
+$('#btn-nester-laut').addEventListener('click', () => {
+  const ende = $('#nester .spiel-ende');
+  if ((ende && !ende.hidden) || ns.fertig || ns.gesperrt || ns.ziehen) return;
+  audio();
+  if (ns.inEcht) { inEchtNochmal(ns); return; }
+  ns.gesperrt = true;
+  nsAnsage(ns.nummer, 'nester-verteil').then((ok) => { if (ok) { ns.gesperrt = false; nsHilfeAbwarten(ns.nummer); } });
+});
+window.addEventListener('resize', () => { if ($('#nester').classList.contains('active') && !ns.auftrag) nsAnordnen(); });
+
+// ---------- Zahlentreppe (eher ab 4½): Mengen der Größe nach ordnen – jede Stufe hat einen mehr ----------
+// Punktstangen 1 bis 5 (wie Perlenstäbchen, ohne Ziffern) liegen durcheinander. Unten ist die Treppe vorgezeichnet:
+// jede Stufe hat den Umriss ihrer Stange – eine Stange rastet nur dort ein, wo sie passt (Selbstkontrolle des
+// Materials, kein „falsch“: sonst bleibt sie einfach liegen). Rastet sie ein, zählt die App ihre Punkte.
+// Ist die Treppe fertig, läuft ein Käfer hinauf: „Eins, zwei, drei, vier, fünf. Jede Stufe hat einen mehr!“
+// Zum Schluss in echt: „Bau eine Treppe aus Bausteinen: einer, dann zwei, dann drei!“
+const TREPPE_N = 5;
+const TREPPE_ZEIT = { hilfe: 12000, fertigPause: 500, daumen: 6000, auftragNochmal: 16000 };
+const tp = { stangen: [], ziehen: null, gesperrt: true, timer: null, nummer: 0, fertig: false, inEcht: false, auftrag: false,
+  mass: null };
+const tpBausteine = spielBausteine('treppe', tp);
+const { aktuell: tpAktuell, ansage: tpAnsage, zaehlen: tpZaehlen } = tpBausteine;
+
+function treppeStoppen() {
+  tpBausteine.stoppen();
+  tp.ziehen = null;
+}
+
+function tpStangeSvg(n) {
+  return `<svg viewBox="0 0 30 ${n * 30}" aria-hidden="true"><rect x="2" y="2" width="26" height="${n * 30 - 4}" rx="8" fill="#e6b47a" stroke="#4a3f35" stroke-width="3"/>`
+    + Array.from({ length: n }, (_, i) => `<circle class="menge-punkt" cx="15" cy="${15 + i * 30}" r="8"/>`).join('') + '</svg>';
+}
+
+// Treppe unten (Stufe k steht bei x = k, ist k Punkte hoch), Vorrat oben – gleicher Abstand, gleiche Punktgröße
+function tpMasse() {
+  const feld = $('#treppe-feld');
+  const W = feld.clientWidth, H = feld.clientHeight;
+  const quer = W > H;
+  const E = Math.min(56, (H - (quer ? 40 : 140)) / (TREPPE_N * 2 + 1.5), (W - 40) / (TREPPE_N * 2.2));   // Punkt-Einheit
+  const B = E;   // Breite einer Stange
+  const lueckeT = 6;
+  const treppeW = TREPPE_N * B + (TREPPE_N - 1) * lueckeT;
+  const tx0 = (W - treppeW) / 2;
+  const boden = H - (quer ? 16 : 96);
+  const stufen = Array.from({ length: TREPPE_N }, (_, i) => ({ n: i + 1, x: tx0 + i * (B + lueckeT) + B / 2, unten: boden }));
+  const vAbstand = Math.min(B * 2, (W - 40 - B) / (TREPPE_N - 1));
+  const vorratUnten = boden - TREPPE_N * E - 24;
+  return { W, H, E, B, stufen, vAbstand, vorratUnten };
+}
+
+function tpStangeSetzen(s, x, unten) {
+  const { W, B, E } = tp.mass;
+  const h = s.n * E;
+  s.x = Math.max(B / 2, Math.min(W - B / 2, x));
+  s.unten = Math.max(h, unten);
+  s.el.style.transform = `translate(${s.x - B / 2}px, ${s.unten - h}px)`;
+}
+
+function tpAnordnen() {
+  const feld = $('#treppe-feld');
+  if (!feld.clientWidth || !tp.stangen.length) return;
+  tp.mass = tpMasse();
+  const { W, B, E, stufen, vAbstand, vorratUnten } = tp.mass;
+  feld.querySelectorAll('.stufe').forEach((el, i) => {
+    const st = stufen[i];
+    Object.assign(el.style, { left: `${st.x - B / 2}px`, top: `${st.unten - st.n * E}px`, width: `${B}px`, height: `${st.n * E}px` });
+  });
+  tp.stangen.forEach((s) => Object.assign(s.el.style, { width: `${B}px`, height: `${s.n * E}px` }));
+  const lose = tp.stangen.filter((s) => !s.drin);
+  lose.forEach((s, i) => tpStangeSetzen(s, W / 2 - ((lose.length - 1) * vAbstand) / 2 + i * vAbstand, vorratUnten));
+  tp.stangen.filter((s) => s.drin).forEach((s) => tpStangeSetzen(s, stufen[s.n - 1].x, stufen[s.n - 1].unten));
+}
+
+async function treppeNeu() {
+  treppeStoppen();
+  const nr = tp.nummer;
+  Object.assign(tp, { fertig: false, inEcht: false, auftrag: false });
+  $('#btn-treppe-daumen').hidden = true;
+  const feld = $('#treppe-feld');
+  feld.closest('.screen').classList.remove('ruhig');
+  feld.innerHTML = Array.from({ length: TREPPE_N }, () => '<div class="stufe"></div>').join('');
+  // Durcheinander, aber nie schon fertig sortiert
+  let folge;
+  do folge = mischen(Array.from({ length: TREPPE_N }, (_, i) => i + 1)); while (folge.every((n, i) => n === i + 1));
+  tp.stangen = folge.map((n) => {
+    const el = document.createElement('div');
+    el.className = 'stange';
+    el.style.transition = 'none';
+    el.innerHTML = tpStangeSvg(n);
+    feld.appendChild(el);
+    const s = { el, n, x: 0, unten: 0, drin: false };
+    el.stange = s;
+    return s;
+  });
+  tpAnordnen();
+  void feld.offsetWidth;
+  tp.stangen.forEach((s) => { s.el.style.transition = ''; });
+  tp.gesperrt = true;
+  if (!(await tpAnsage(nr, 'treppe-start'))) return;
+  tp.gesperrt = false;
+  tpHilfeAbwarten(nr);
+}
+
+// Lange nichts eingerastet: die Stufe für die kleinste lose Stange pulsiert (sie passt dort genau)
+function tpHilfeAbwarten(nr) {
+  clearTimeout(tp.timer);
+  tp.timer = setTimeout(async () => {
+    if (!tpAktuell(nr) || tp.gesperrt || tp.ziehen) { tpHilfeAbwarten(nr); return; }
+    tp.gesperrt = true;
+    if (!(await tpAnsage(nr, 'treppe-hilfe'))) return;
+    tp.gesperrt = false;
+    const kleinste = tp.stangen.filter((s) => !s.drin).sort((a, b) => a.n - b.n)[0];
+    if (kleinste) {
+      animieren($('#treppe-feld').querySelectorAll('.stufe')[kleinste.n - 1], 'pulsiert');
+      animieren(kleinste.el, 'huepft');
+    }
+    tpHilfeAbwarten(nr);
+  }, TREPPE_ZEIT.hilfe);
+}
+
+$('#treppe-feld').addEventListener('pointerdown', (e) => {
+  const el = e.target.closest('.stange');
+  if (!el || !el.stange || el.stange.drin) return;
+  e.preventDefault();
+  if (tp.ziehen || tp.gesperrt || tp.auftrag) return;
+  audio();
+  const s = el.stange;
+  const feldR = $('#treppe-feld').getBoundingClientRect();
+  // Greifpunkt merken: die Stange hängt dort am Finger, wo sie gegriffen wurde
+  tp.ziehen = { s, id: e.pointerId, sx: e.clientX, sy: e.clientY, bewegt: false, feld: feldR, nr: tp.nummer,
+    dx: s.x - (e.clientX - feldR.left), dy: s.unten - (e.clientY - feldR.top) };
+  el.classList.add('greift');
+  try { el.setPointerCapture(e.pointerId); } catch { /* synthetische Ereignisse (Tests) */ }
+});
+
+document.addEventListener('pointermove', (e) => {
+  const z = tp.ziehen;
+  if (!z || e.pointerId !== z.id) return;
+  if (Math.hypot(e.clientX - z.sx, e.clientY - z.sy) > 8) z.bewegt = true;
+  if (z.bewegt) tpStangeSetzen(z.s, e.clientX - z.feld.left + z.dx, e.clientY - z.feld.top + z.dy - 20);
+});
+
+function tpLoslassen(e) {
+  const z = tp.ziehen;
+  if (!z || e.pointerId !== z.id) return;
+  tp.ziehen = null;
+  z.s.el.classList.remove('greift');
+  if (z.nr !== tp.nummer || !tpAktuell(z.nr)) return;
+  if (!z.bewegt) { animieren(z.s.el, 'huepft'); return; }
+  const { stufen, B, E, vorratUnten } = tp.mass;
+  const st = stufen[z.s.n - 1];
+  // Nur auf ihrer eigenen Stufe rastet die Stange ein (großzügig: eine Stangenbreite daneben)
+  if (Math.abs(z.s.x - st.x) <= B * 1.1 && Math.abs(z.s.unten - st.unten) <= E * 2) { tpEinrasten(z.s); return; }
+  // Sonst bleibt sie liegen – über der Treppe, damit nichts halb in einer Stufe steckt
+  if (z.s.unten > vorratUnten) tpStangeSetzen(z.s, z.s.x, vorratUnten);
+}
+document.addEventListener('pointerup', tpLoslassen);
+document.addEventListener('pointercancel', tpLoslassen);
+
+async function tpEinrasten(s) {
+  const nr = tp.nummer;
+  s.drin = true;
+  const st = tp.mass.stufen[s.n - 1];
+  tpStangeSetzen(s, st.x, st.unten);
+  const fertig = tp.stangen.every((x) => x.drin);
+  tp.gesperrt = true;
+  clearTimeout(tp.timer);
+  if (!(await tpZaehlen(nr, `zaehlen-${s.n}`, [...s.el.querySelectorAll('.menge-punkt')]))) return;
+  s.el.querySelectorAll('.menge-punkt').forEach((p) => p.classList.remove('leuchtet'));
+  if (!fertig) { tp.gesperrt = false; tpHilfeAbwarten(nr); return; }
+  await warten(TREPPE_ZEIT.fertigPause);
+  if (!tpAktuell(nr)) return;
+  // Fertig: der Käfer läuft die Treppe hinauf – eine Stufe je Zahl
+  const kaefer = document.createElement('div');
+  kaefer.className = 'treppe-kaefer';
+  kaefer.textContent = '🐞';
+  $('#treppe-feld').appendChild(kaefer);
+  const { E, B } = tp.mass;
+  const stangen = [...tp.stangen].sort((a, b) => a.n - b.n);
+  const aufStufe = (i) => { const t = tp.mass.stufen[i]; kaefer.style.transform = `translate(${t.x - B / 2}px, ${t.unten - t.n * E - B}px)`; };
+  Object.assign(kaefer.style, { width: `${B}px`, height: `${B}px`, fontSize: `${B * 0.8}px` });
+  aufStufe(0);
+  glockenspiel();
+  if (!(await tpZaehlen(nr, `zaehlen-${TREPPE_N}`, stangen.map((x) => x.el), (i) => aufStufe(i)))) return;
+  if (!(await tpAnsage(nr, 'treppe-fertig'))) return;
+  await warten(600);
+  if (tpAktuell(nr)) treppeAuftrag();
+}
+
+// ----- Echte Welt: „Bau eine Treppe aus Bausteinen: einer, dann zwei, dann drei!“ -----
+
+function treppeAuftrag() {
+  treppeStoppen();
+  const nr = tp.nummer;
+  tp.auftrag = true;
+  tp.fertig = false;
+  $('#btn-treppe-daumen').hidden = true;
+  const klotz = (x, y) => `<rect x="${x}" y="${y}" width="22" height="22" rx="3" fill="#d23c2c" stroke="#4a3f35" stroke-width="3"/>`;
+  const bild = `<svg viewBox="0 0 100 100" aria-hidden="true">${klotz(12, 70)}${klotz(39, 70)}${klotz(39, 46)}${klotz(66, 70)}${klotz(66, 46)}${klotz(66, 22)}</svg>`;
+  inEcht({ z: tp, nr, aktuell: tpAktuell, ansage: tpAnsage, buehne: $('#treppe-feld'), knopf: $('#btn-treppe-daumen'),
+    karteHtml: bild, sagen: (nr2) => tpAnsage(nr2, 'treppe-welt'), zeit: TREPPE_ZEIT, karteKlasse: 'gross' });
+}
+
+async function treppeAuftragErledigt(nr) {
+  const karte = inEchtBestaetigt(tp, $('#btn-treppe-daumen'));
+  if (!karte) return;
+  animieren(karte, 'huepft');
+  glockenspiel();
+  await warten(400);
+  if (!(await tpAnsage(nr, 'treppe-welt-fertig'))) return;
+  spielEnde('treppe', treppeNeu);
+}
+
+$('#btn-treppe-daumen').addEventListener('click', () => { audio(); if (tp.inEcht) treppeAuftragErledigt(tp.nummer); });
+
+function treppeStarten() {
+  spielEndeWeg('treppe');
+  zeigen('treppe');
+  treppeNeu();
+}
+SPIELE.treppe = treppeStarten;
+$('#home .spiel-btn[data-spiel="treppe"]').innerHTML = '<svg class="kachel-bild" viewBox="0 0 100 100" aria-hidden="true">'
+  + [1, 2, 3, 4].map((n, i) => `<rect x="${14 + i * 19}" y="${86 - n * 18}" width="15" height="${n * 18}" rx="5" fill="#e6b47a" stroke="#4a3f35" stroke-width="2.5"/>`
+    + Array.from({ length: n }, (_, k) => `<circle cx="${21.5 + i * 19}" cy="${77 - k * 18}" r="4.5" fill="#4a3f35"/>`).join('')).join('') + '</svg>';
+
+$('#btn-treppe-home').addEventListener('click', () => { treppeStoppen(); wiedergabeStoppen(); zurStartseite(); });
+$('#btn-treppe-laut').addEventListener('click', () => {
+  const ende = $('#treppe .spiel-ende');
+  if ((ende && !ende.hidden) || tp.fertig || tp.gesperrt || tp.ziehen) return;
+  audio();
+  if (tp.inEcht) { inEchtNochmal(tp); return; }
+  tp.gesperrt = true;
+  tpAnsage(tp.nummer, 'treppe-start').then((ok) => { if (ok) { tp.gesperrt = false; tpHilfeAbwarten(tp.nummer); } });
+});
+window.addEventListener('resize', () => { if ($('#treppe').classList.contains('active') && !tp.auftrag) tpAnordnen(); });
 
 // ---------- Elternbereich (2 Sekunden gedrückt halten) ----------
 

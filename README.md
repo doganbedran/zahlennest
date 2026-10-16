@@ -56,6 +56,12 @@ hinzufügen“. Elternbereich: ⚙️ oben rechts 2 Sekunden halten. Fragen und 
 - 🐞 **Zahlenweg** (ab 4) – gerades, durchnummeriertes Brett 1–10 (nach Ramani & Siegler 2008): Kind und Teddy
   würfeln abwechselnd (Würfel nur 1 oder 2) und bringen denselben Käfer gemeinsam ins Ziel – kein Gewinner. Beim Ziehen
   wird die Zahl jedes Feldes gesagt; das Kind schiebt Feld für Feld. Zum Schluss: Treppenstufen zählen.
+- 🥚 **Zwei Nester** (eher ab 4½) – Zerlegen ohne Plus und ohne Ziffern: 3, dann 4, dann 5 Eier frei auf zwei Nester
+  verteilen (jede Aufteilung gilt, Umlegen erlaubt); dann „Zwei hier und eins da. Zusammen sind es drei!“.
+  Zum Schluss: drei Bausteine auf zwei Hände verteilen.
+- 🪜 **Zahlentreppe** (eher ab 4½) – Punktstangen 1–5 der Größe nach ordnen; eine Stange rastet nur auf ihrer Stufe ein
+  (Selbstkontrolle), ihre Punkte werden gezählt; zum Schluss läuft ein Käfer hinauf: „Jede Stufe hat einen mehr!“.
+  In echt: eine Treppe aus Bausteinen bauen.
 
 Alle Spiele enden gleich: Das Spiel macht den Auftrag einmal vor, dann „Jetzt in echt!“ – der Bildschirm wird ruhig
 (👐, kleine Erinnerungskarte), das Kind macht es mit echten Dingen; ein Erwachsener tippt 👍, dann zählt die App mit.

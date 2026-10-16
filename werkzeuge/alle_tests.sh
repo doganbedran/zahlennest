@@ -67,6 +67,12 @@ LAEUFE=(
   "weg|tests/weg.html|412,860|90"
   "weg-klein|tests/weg.html|360,640|90"
   "weg-quer|tests/weg.html|860,412|90"
+  "nester|tests/nester.html|412,860|90"
+  "nester-klein|tests/nester.html|360,640|90"
+  "nester-quer|tests/nester.html|860,412|90"
+  "treppe|tests/treppe.html|412,860|90"
+  "treppe-klein|tests/treppe.html|360,640|90"
+  "treppe-quer|tests/treppe.html|860,412|90"
   "sicherheit|tests/sicherheit.html|412,860|60"
   "offline|tests/offline.html|412,860|60"
 )

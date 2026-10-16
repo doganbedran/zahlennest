@@ -116,6 +116,8 @@
       <button class="spiel-btn" data-spiel="jedem" aria-label="Jedem eins" hidden></button>
       <button class="spiel-btn" data-spiel="huepfen" aria-label="Zahlen-Hüpfen" hidden></button>
       <button class="spiel-btn" data-spiel="weg" aria-label="Zahlenweg" hidden></button>
+      <button class="spiel-btn" data-spiel="nester" aria-label="Zwei Nester" hidden></button>
+      <button class="spiel-btn" data-spiel="treppe" aria-label="Zahlentreppe" hidden></button>
     </nav>
     <!-- Noch kein Spiel im Regal: ruhiges Nest statt leerer Seite -->
     <div id="home-leer" class="home-leer" hidden><img src="bilder/nest.svg" alt=""></div>
@@ -231,6 +233,28 @@
     </header>
     <div id="weg-feld" class="weg-feld-buehne"></div>
     <div class="daumen-platz"><button id="btn-weg-daumen" class="daumen-btn" aria-label="Gemacht" hidden>👍</button></div>
+  </section>
+
+  <!-- Zwei Nester: Eier auf zwei Nester verteilen (Zerlegen ohne Plus) -->
+  <section id="nester" class="screen">
+    <header class="topbar">
+      <button id="btn-nester-home" class="icon-btn" aria-label="Zurück">🏠</button>
+      <div id="nester-runden" class="runden-eier"></div>
+      <button id="btn-nester-laut" class="icon-btn" aria-label="Nochmal hören">🔊</button>
+    </header>
+    <div id="nester-feld" class="nester-feld"></div>
+    <div class="daumen-platz"><button id="btn-nester-daumen" class="daumen-btn" aria-label="Gemacht" hidden>👍</button></div>
+  </section>
+
+  <!-- Zahlentreppe: Punktstangen 1–5 der Größe nach ordnen -->
+  <section id="treppe" class="screen">
+    <header class="topbar">
+      <button id="btn-treppe-home" class="icon-btn" aria-label="Zurück">🏠</button>
+      <span></span>
+      <button id="btn-treppe-laut" class="icon-btn" aria-label="Nochmal hören">🔊</button>
+    </header>
+    <div id="treppe-feld" class="treppe-feld"></div>
+    <div class="daumen-platz"><button id="btn-treppe-daumen" class="daumen-btn" aria-label="Gemacht" hidden>👍</button></div>
   </section>
 
   <!-- Hol mir …: ganz echte Welt – „Hol mir zwei Löffel!“, das Kind holt, ein Erwachsener tippt 👍, dann wird gezählt -->
