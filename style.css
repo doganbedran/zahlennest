@@ -525,3 +525,23 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 .welche-haus { width: min(260px, 60vw, 40vh); height: auto; }
 .kachel-ziffern { display: flex; gap: 6%; width: 78%; justify-content: center; }
 .kachel-ziffern .ziffer-svg { width: 44%; height: auto; background: #fff; border: 3px solid #e3d8c6; border-radius: 12px; padding: 4px; }
+
+/* ---------- Fächer füllen (Spindelkasten): Fächer mit Ziffern, schmale Holzstäbchen ---------- */
+#faecher, .faecher-feld { touch-action: none; overscroll-behavior: none; }
+.faecher-feld { flex: 1; position: relative; min-height: 0; }
+.fach { position: absolute; display: flex; flex-direction: column; gap: 6px; transition: opacity 0.3s; }
+.fach-ziffer { display: flex; justify-content: center; }
+.fach-ziffer .ziffer-svg { height: 100%; width: auto; }
+.fach-raum { flex: 1; border: 4px solid #8a5a3c; border-top-width: 0; border-radius: 0 0 14px 14px; background: #f6efe3;
+  box-shadow: inset 0 6px 0 rgba(74, 63, 53, 0.08); }
+.fach.dran .fach-raum { background: #fff7e6; box-shadow: 0 0 0 4px #f5c518; }
+.fach.null .fach-raum { background: repeating-linear-gradient(135deg, #f6efe3 0 10px, #efe5d4 10px 20px); }
+.fach.huepft { animation: huepfen 0.6s ease; }
+.stab { position: absolute; left: 0; top: 0; display: flex; justify-content: center; touch-action: none; z-index: 2;
+  transition: transform 0.28s ease-out; }
+.stab svg { height: 100%; display: block; transition: transform 0.15s; }
+.stab.greift { transition: none; z-index: 5; }
+.stab.greift svg { transform: scale(1.1); }
+.stab.huepft svg { animation: ding-huepfen 0.4s ease; }
+.stab.leuchtet svg rect:first-child { fill: #f5c518; }
+@media (prefers-reduced-motion: reduce) { .stab { transition: none; } }

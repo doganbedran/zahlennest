@@ -43,6 +43,10 @@ hinzufügen“. Elternbereich: ⚙️ oben rechts 2 Sekunden halten. Fragen und 
   Karten, nach zwei sicheren Treffern drei; daneben = benennen, dann zeigt die Ziffer ihre Menge, dann Lösung) →
   „Welche Zahl ist das? Sag es!“ (ohne Prüfung). Zum Schluss „Such eine Drei bei dir zu Hause!“. Gleiche Gruppen wie
   beim Nachspuren.
+- 🗃️ **Fächer füllen** (ab 4) – Spindelkasten-Gedanke: Fächer mit Ziffern, „Das ist die Zwei. Leg zwei Stäbchen
+  hinein.“ Das Kind schiebt Stäbchen ins Fach (Zahlwort je Ankommen, volles Fach nimmt keins mehr), die Null bleibt
+  leer; im Vorrat liegen genau so viele Stäbchen wie nötig. Zum Schluss: „Hol drei Bausteine und leg sie neben die
+  Drei!“. Gleiche Gruppen wie beim Nachspuren.
 
 Alle Spiele enden gleich: Das Spiel macht den Auftrag einmal vor, dann „Jetzt in echt!“ – der Bildschirm wird ruhig
 (👐, kleine Erinnerungskarte), das Kind macht es mit echten Dingen; ein Erwachsener tippt 👍, dann zählt die App mit.

@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 19;
+const APP_VERSION = 20;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -151,7 +151,7 @@ function kindBildHtml(k) {
 
 // Reihenfolge = Reihenfolge im Konzept (so werden sie nach und nach gebaut und freigeschaltet).
 // Montessori: ein Material kommt erst ins Regal, wenn es gezeigt wurde. Gespeichert wird, was AUSGEBLENDET ist.
-const ALLE_SPIELE = ['wieviele', 'mehr', 'korb', 'trommel', 'holmir', 'ziffern', 'welche'];
+const ALLE_SPIELE = ['wieviele', 'mehr', 'korb', 'trommel', 'holmir', 'ziffern', 'welche', 'faecher'];
 const START_REGAL = ['wieviele'];
 const START_AUS = ALLE_SPIELE.filter((id) => !START_REGAL.includes(id));
 // Für Eltern: was jedes Spiel tut (die Kacheln zeigen den Kindern nur ein Bild)
@@ -163,6 +163,7 @@ const SPIEL_INFO = {
   holmir: 'Echte Dinge holen und zusammen zählen (mit Erwachsenem)',
   ziffern: 'Ziffern mit dem Finger nachfahren, dann die Menge sehen (eher ab 4)',
   welche: 'Ziffern wiedererkennen: „Wo ist die Drei?“ (nach dem Nachspuren, eher ab 4)',
+  faecher: 'Zur Ziffer selbst die Menge legen, die Null bleibt leer (nach „Welche Zahl?“, eher ab 4)',
 };
 // Fertige Spiele: id -> Startfunktion. Was hier fehlt, erscheint weder auf der Startseite noch im Regal.
 const SPIELE = {};
@@ -395,6 +396,7 @@ window.addEventListener('popstate', () => {
   holStoppen();
   ziffernStoppen();
   welcheStoppen();
+  faecherStoppen();
   studioAbbrechen();
   studioMikrofonZu();
   const ziel = (history.state && history.state.screen) || 'home';
@@ -3062,6 +3064,298 @@ $('#btn-welche-laut').addEventListener('click', () => {
   }
   wlSchritt();
 });
+
+// ---------- Fächer füllen (ab 4): zur Ziffer selbst die Menge legen – der Spindelkasten-Gedanke ----------
+// Fächer mit Ziffern (dieselben Gruppen wie beim Nachspuren, aufsteigend). Ein Fach nach dem anderen ist dran:
+// „Das ist die Zwei. Leg zwei Stäbchen hinein.“ Das Kind schiebt Stäbchen hinein, jedes Ankommen hat sein Zahlwort;
+// ist das Fach voll, nimmt es keins mehr (das Stäbchen bleibt einfach liegen – kein „falsch“), alle Stäbchen darin
+// leuchten: „Eins, zwei. Zwei!“ Die Null ist ein Fach, in das nichts kommt. Im Vorrat liegen genau so viele
+// Stäbchen wie nötig – am Ende sind alle verteilt (Selbstkontrolle wie beim echten Spindelkasten).
+// Zum Schluss in echt: „Hol drei Bausteine und leg sie neben die Drei!“ (die Drei steht groß auf dem Bildschirm).
+const FAECHER_ZEIT = { hilfe: 12000, nullPause: 1600, fachPause: 700, daumen: 6000, auftragNochmal: 16000 };
+const fa = { ziffern: [], fachNr: 0, staebe: [], faecher: [], ziehen: null, gesperrt: true, timer: null, nummer: 0,
+  sprech: { kette: Promise.resolve(), offen: 0 }, fertig: false, inEcht: false, auftrag: false, mass: null };
+const faBausteine = spielBausteine('faecher', fa);
+const { aktuell: faAktuell, ansage: faAnsage, zaehlen: faZaehlen } = faBausteine;
+const STAB_SVG = '<svg viewBox="0 0 20 100" aria-hidden="true" preserveAspectRatio="none"><rect x="3" y="2" width="14" height="96" rx="7" '
+  + 'fill="#c98f4e" stroke="#4a3f35" stroke-width="3"/><rect x="7" y="10" width="3" height="70" rx="1.5" fill="#e6b47a"/></svg>';
+
+function faecherStoppen() {
+  faBausteine.stoppen();
+  fa.ziehen = null;
+}
+
+// Maße: Fächer unten in einer Reihe, Vorrat darüber (gleich große Stäbchen in gleichem Abstand). Stäbchen sind schmal
+// wie echte Spindeln, ihr Greifbereich ist aber mindestens 40 px breit.
+function faMasse() {
+  const feld = $('#faecher-feld');
+  const W = feld.clientWidth, H = feld.clientHeight;
+  const quer = W > H;
+  const n = fa.ziffern.length;
+  const rand = 16, luecke = 12;
+  const fachW = Math.min(220, (W - 2 * rand - (n - 1) * luecke) / n);
+  const zifferH = Math.min(64, H * 0.12);
+  const raumH = Math.min(170, H * 0.3);
+  const fachY = H - raumH - (quer ? 16 : 96);   // hochkant unten Platz für 👍 (quer sitzt er rechts daneben)
+  const x0 = (W - (n * fachW + (n - 1) * luecke)) / 2;
+  const faecher = fa.ziffern.map((z, i) => ({ x: x0 + i * (fachW + luecke), y: fachY, w: fachW, h: raumH }));
+  const vorratH = fachY - zifferH - 24;
+  const meiste = Math.max(1, ...fa.ziffern);
+  const summe = fa.ziffern.reduce((a, b) => a + b, 0);
+  let stabH = Math.min(raumH * 0.78, 96);
+  const stabW = Math.max(6, Math.min(stabH * 0.2, (fachW - 16) / (meiste * 1.35)));
+  const greifW = Math.max(40, stabW + 12);
+  const abstand = greifW + 6;
+  const proReihe = Math.max(1, Math.floor((W - 40) / abstand));
+  const reihen = Math.ceil(summe / proReihe);
+  stabH = Math.max(40, Math.min(stabH, (vorratH - 12) / reihen - 12));
+  return { W, H, faecher, zifferH, stabW, stabH, greifW, abstand, proReihe, vorratH };
+}
+
+function faStabSetzen(s, x, y) {
+  const { W, H, greifW, stabH } = fa.mass;
+  s.x = Math.max(greifW / 2, Math.min(W - greifW / 2, x));
+  s.y = Math.max(stabH / 2, Math.min(H - stabH / 2, y));
+  s.el.style.transform = `translate(${s.x - greifW / 2}px, ${s.y - stabH / 2}px)`;
+}
+
+// Platz i im Fach: nebeneinander, mittig
+function faFachPlatz(f, i, anzahl) {
+  const { stabW } = fa.mass;
+  const abstand = Math.min(stabW * 1.6, (f.w - 16 - stabW) / Math.max(1, anzahl - 1));
+  const breite = (anzahl - 1) * abstand;
+  return [f.x + f.w / 2 - breite / 2 + i * abstand, f.y + f.h / 2];
+}
+
+function faAnordnen() {
+  const feld = $('#faecher-feld');
+  if (!feld.clientWidth || !fa.ziffern.length) return;
+  fa.mass = faMasse();
+  const { faecher, zifferH, stabW, stabH, W } = fa.mass;
+  feld.querySelectorAll('.fach').forEach((el, i) => {
+    const f = faecher[i];
+    Object.assign(el.style, { left: `${f.x}px`, top: `${f.y - zifferH - 6}px`, width: `${f.w}px`, height: `${f.h + zifferH + 6}px` });
+    el.querySelector('.fach-ziffer').style.height = `${zifferH}px`;
+  });
+  const { greifW, abstand, proReihe } = fa.mass;
+  feld.querySelectorAll('.stab').forEach((el) => {
+    Object.assign(el.style, { width: `${greifW}px`, height: `${stabH}px` });
+    el.firstChild.style.width = `${stabW}px`;
+  });
+  // Vorrat: Reihen mit festem Abstand
+  const frei = fa.staebe.filter((s) => s.fach === null);
+  const reiheH = stabH + 12;
+  frei.forEach((s, i) => {
+    const reihe = Math.floor(i / proReihe), inReihe = Math.min(proReihe, frei.length - reihe * proReihe);
+    const x = W / 2 - ((inReihe - 1) * abstand) / 2 + (i % proReihe) * abstand;
+    faStabSetzen(s, x, 12 + stabH / 2 + reihe * reiheH);
+  });
+  fa.faecher.forEach((f, i) => f.staebe.forEach((s, k) => faStabSetzen(s, ...faFachPlatz(faecher[i], k, Math.max(1, fa.ziffern[i])))));
+}
+
+function faFeldAufbauen() {
+  const feld = $('#faecher-feld');
+  feld.closest('.screen').classList.remove('ruhig');
+  feld.innerHTML = '';
+  fa.faecher = fa.ziffern.map((z) => {
+    const el = document.createElement('div');
+    el.className = `fach${z === 0 ? ' null' : ''}`;
+    el.innerHTML = `<div class="fach-ziffer">${zifferSvg(z)}</div><div class="fach-raum"></div>`;
+    feld.appendChild(el);
+    return { el, ziffer: z, staebe: [] };
+  });
+  const summe = fa.ziffern.reduce((a, b) => a + b, 0);
+  fa.staebe = Array.from({ length: summe }, () => {
+    const el = document.createElement('div');
+    el.className = 'stab';
+    el.style.transition = 'none';   // erst an den Platz, dann erst gleiten (sonst fliegen alle aus der Ecke herein)
+    el.innerHTML = STAB_SVG;
+    feld.appendChild(el);
+    const s = { el, x: 0, y: 0, fach: null };
+    el.stab = s;
+    return s;
+  });
+  faAnordnen();
+  void feld.offsetWidth;
+  fa.staebe.forEach((st) => { st.el.style.transition = ''; });
+}
+
+const faFach = () => fa.faecher[fa.fachNr];
+
+async function faFachStarten() {
+  clearTimeout(fa.timer);
+  const nr = fa.nummer;
+  fa.faecher.forEach((f, i) => f.el.classList.toggle('dran', i === fa.fachNr));
+  const z = faFach().ziffer;
+  fa.gesperrt = true;
+  if (z === 0) {
+    // Null: das Fach bleibt leer
+    animieren(faFach().el, 'huepft');
+    if (!(await faAnsage(nr, 'faecher-null'))) return;
+    await warten(FAECHER_ZEIT.nullPause);
+    if (faAktuell(nr)) faNaechstesFach(nr);
+    return;
+  }
+  if (!(await faAnsage(nr, `faecher-leg-${z}`))) return;
+  fa.gesperrt = false;
+  faHilfeAbwarten(nr);
+}
+
+// Lange nichts angekommen: Auftrag nochmal, ein freies Stäbchen hüpft (kein Zeitdruck, nie selbst weiter)
+function faHilfeAbwarten(nr) {
+  clearTimeout(fa.timer);
+  fa.timer = setTimeout(async () => {
+    if (!faAktuell(nr) || fa.gesperrt || fa.ziehen || fa.sprech.offen) { faHilfeAbwarten(nr); return; }
+    fa.gesperrt = true;
+    const ok = await faAnsage(nr, `faecher-leg-${faFach().ziffer}`);
+    if (!ok) return;
+    fa.gesperrt = false;
+    const frei = fa.staebe.find((s) => s.fach === null);
+    if (frei) animieren(frei.el, 'huepft');
+    faHilfeAbwarten(nr);
+  }, FAECHER_ZEIT.hilfe);
+}
+
+$('#faecher-feld').addEventListener('pointerdown', (e) => {
+  const el = e.target.closest('.stab');
+  if (!el || !el.stab || el.stab.fach !== null) return;
+  e.preventDefault();
+  if (fa.ziehen || fa.gesperrt || fa.auftrag) return;
+  audio();
+  fa.ziehen = { s: el.stab, id: e.pointerId, sx: e.clientX, sy: e.clientY, bewegt: false, feld: $('#faecher-feld').getBoundingClientRect(), nr: fa.nummer };
+  el.classList.add('greift');
+  try { el.setPointerCapture(e.pointerId); } catch { /* synthetische Ereignisse (Tests) */ }
+});
+
+document.addEventListener('pointermove', (e) => {
+  const z = fa.ziehen;
+  if (!z || e.pointerId !== z.id) return;
+  if (Math.hypot(e.clientX - z.sx, e.clientY - z.sy) > 8) z.bewegt = true;
+  // Das Stäbchen sitzt ~30 px über dem Finger, damit das Kind es sieht
+  if (z.bewegt) faStabSetzen(z.s, e.clientX - z.feld.left, e.clientY - z.feld.top - 30);
+});
+
+// Im aktiven Fach? (großzügig: bis 40 px daneben zählt)
+function faImFach(s) {
+  const f = fa.mass.faecher[fa.fachNr];
+  const dx = Math.max(f.x - s.x, 0, s.x - f.x - f.w), dy = Math.max(f.y - fa.mass.zifferH - s.y, 0, s.y - f.y - f.h);
+  return Math.hypot(dx, dy) <= 40;
+}
+
+function faLoslassen(e) {
+  const z = fa.ziehen;
+  if (!z || e.pointerId !== z.id) return;
+  fa.ziehen = null;
+  z.s.el.classList.remove('greift');
+  if (z.nr !== fa.nummer || !faAktuell(z.nr)) return;
+  if (!z.bewegt) { animieren(z.s.el, 'huepft'); return; }
+  const f = faFach();
+  if (!fa.gesperrt && f.ziffer > 0 && f.staebe.length < f.ziffer && faImFach(z.s)) { faEinlegen(z.s); return; }
+  // Daneben, anderes oder volles Fach: bleibt liegen – aber oberhalb der Fächer (nichts liegt ungezählt in einem Fach)
+  const { faecher, zifferH, stabH } = fa.mass;
+  const oben = faecher[0].y - zifferH - 12 - stabH / 2;
+  if (z.s.y > oben) faStabSetzen(z.s, z.s.x, oben);
+}
+document.addEventListener('pointerup', faLoslassen);
+document.addEventListener('pointercancel', faLoslassen);
+
+async function faEinlegen(s) {
+  const nr = fa.nummer;
+  const f = faFach();
+  s.fach = fa.fachNr;
+  f.staebe.push(s);
+  faStabSetzen(s, ...faFachPlatz(fa.mass.faecher[fa.fachNr], f.staebe.length - 1, f.ziffer));
+  const k = f.staebe.length;
+  const voll = k >= f.ziffer;
+  if (voll) { fa.gesperrt = true; clearTimeout(fa.timer); } else faHilfeAbwarten(nr);
+  // Zahlwörter in einer Reihe (jedes Ankommen hört sein ganzes Wort, auch wenn schnell nachgelegt wird)
+  const sp = fa.sprech;
+  sp.offen++;
+  sp.kette = sp.kette.then(() => faAnsage(nr, `korb-zahl-${k}`)).finally(() => { sp.offen--; });
+  if (!(await sp.kette) || !voll) return;
+  await warten(300);
+  // Voll: alle Stäbchen im Fach leuchten, die ganze Zählfolge
+  if (!(await faZaehlen(nr, `zaehlen-${f.ziffer}`, f.staebe.map((x) => x.el)))) return;
+  glockenspiel();
+  await warten(FAECHER_ZEIT.fachPause);
+  if (faAktuell(nr)) faNaechstesFach(nr);
+}
+
+async function faNaechstesFach(nr) {
+  faFach().el.classList.add('fertig');
+  fa.fachNr++;
+  if (fa.fachNr < fa.faecher.length) { faFachStarten(); return; }
+  fa.faecher.forEach((f) => f.el.classList.remove('dran'));
+  if (!(await faAnsage(nr, 'faecher-fertig'))) return;
+  await warten(600);
+  if (faAktuell(nr)) faecherAuftrag();
+}
+
+// ----- Echte Welt: „Hol drei Bausteine und leg sie neben die Drei!“ – nach 👍 zählt die App mit -----
+
+function faecherAuftrag() {
+  faecherStoppen();
+  const nr = fa.nummer;
+  fa.auftrag = true;
+  fa.fertig = false;
+  $('#btn-faecher-daumen').hidden = true;
+  // Eine Menge, die man gut holen kann: die größte Ziffer bis 5 (sonst die kleinste über 0)
+  const ohneNull = fa.ziffern.filter((z) => z > 0);
+  fa.weltMenge = Math.max(...ohneNull.filter((z) => z <= 5), 0) || Math.min(...ohneNull);
+  const n = fa.weltMenge;
+  inEcht({ z: fa, nr, aktuell: faAktuell, ansage: faAnsage, buehne: $('#faecher-feld'), knopf: $('#btn-faecher-daumen'),
+    karteHtml: `${zifferSvg(n)}${korbKarteSvg(Math.min(n, 5)).replace('<svg', n > 5 ? '<svg hidden' : '<svg')}`,
+    sagen: (nr2) => faAnsage(nr2, `faecher-welt-${n}`), zeit: FAECHER_ZEIT, karteKlasse: 'gross' });
+}
+
+async function faecherAuftragErledigt(nr) {
+  const karte = inEchtBestaetigt(fa, $('#btn-faecher-daumen'));
+  if (!karte) return;
+  if (!(await faAnsage(nr, 'zeig-mal'))) return;
+  const punkte = [...karte.querySelectorAll('svg:not([hidden]) .karte-punkt')];
+  if (!(await faZaehlen(nr, `zaehlen-${fa.weltMenge}`, punkte))) return;
+  glockenspiel();
+  await warten(400);
+  if (!(await faAnsage(nr, 'faecher-welt-fertig'))) return;
+  spielEnde('faecher', faecherNeu);
+}
+
+$('#btn-faecher-daumen').addEventListener('click', () => { audio(); if (fa.inEcht) faecherAuftragErledigt(fa.nummer); });
+
+function faecherNeu() {
+  faecherStoppen();
+  Object.assign(fa, { ziffern: ziffernRundenPlanen(), fachNr: 0, fertig: false, inEcht: false, auftrag: false,
+    sprech: { kette: Promise.resolve(), offen: 0 } });
+  $('#btn-faecher-daumen').hidden = true;
+  faFeldAufbauen();
+  faFachStarten();
+}
+
+function faecherStarten() {
+  spielEndeWeg('faecher');
+  zeigen('faecher');
+  faecherNeu();
+}
+SPIELE.faecher = faecherStarten;
+// Kachel: drei Fächer mit 1 2 3, zwei Stäbchen liegen schon im zweiten
+$('#home .spiel-btn[data-spiel="faecher"]').innerHTML = '<svg class="kachel-bild" viewBox="0 0 100 100" aria-hidden="true">'
+  + '<rect x="6" y="40" width="88" height="44" rx="6" fill="#f6efe3" stroke="#4a3f35" stroke-width="3"/>'
+  + '<line x1="35" y1="40" x2="35" y2="84" stroke="#4a3f35" stroke-width="3"/><line x1="65" y1="40" x2="65" y2="84" stroke="#4a3f35" stroke-width="3"/>'
+  + [1, 2, 3].map((z, i) => zifferSvg(z).replace('class="ziffer-svg"', `x="${10 + i * 30}" y="8" width="22" height="28"`)).join('')
+  + '<rect x="45" y="48" width="5" height="30" rx="2.5" fill="#c98f4e" stroke="#4a3f35" stroke-width="1.5"/>'
+  + '<rect x="53" y="48" width="5" height="30" rx="2.5" fill="#c98f4e" stroke="#4a3f35" stroke-width="1.5"/></svg>';
+
+$('#btn-faecher-home').addEventListener('click', () => { faecherStoppen(); wiedergabeStoppen(); zurStartseite(); });
+// 🔊: Auftrag des aktuellen Fachs nochmal (nicht während gezählt wird)
+$('#btn-faecher-laut').addEventListener('click', () => {
+  const ende = $('#faecher .spiel-ende');
+  if ((ende && !ende.hidden) || fa.fertig || fa.gesperrt || fa.ziehen || fa.sprech.offen) return;
+  audio();
+  if (fa.inEcht) { inEchtNochmal(fa); return; }
+  fa.gesperrt = true;
+  faAnsage(fa.nummer, `faecher-leg-${faFach().ziffer}`).then((ok) => { if (ok) { fa.gesperrt = false; faHilfeAbwarten(fa.nummer); } });
+});
+window.addEventListener('resize', () => { if ($('#faecher').classList.contains('active') && !fa.auftrag) faAnordnen(); });
 
 // ---------- Elternbereich (2 Sekunden gedrückt halten) ----------
 

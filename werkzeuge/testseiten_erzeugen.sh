@@ -49,6 +49,7 @@ seite hol 45000
 seite holeigen 30000
 seite ziffern 45000
 seite welche 45000
+seite faecher 45000
 seite sicherheit 15000
 seite offline 20000
 echo "Testseiten erzeugt"
