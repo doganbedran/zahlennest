@@ -110,6 +110,7 @@
       <button class="spiel-btn" data-spiel="korb" aria-label="In den Korb zählen" hidden>🧺</button>
       <button class="spiel-btn" data-spiel="trommel" aria-label="Zahlen-Trommel" hidden>🥁</button>
       <button class="spiel-btn" data-spiel="holmir" aria-label="Hol mir …" hidden>🥄</button>
+      <button class="spiel-btn" data-spiel="ziffern" aria-label="Ziffern nachspuren" hidden></button>
     </nav>
     <!-- Noch kein Spiel im Regal: ruhiges Nest statt leerer Seite -->
     <div id="home-leer" class="home-leer" hidden><img src="bilder/nest.svg" alt=""></div>
@@ -158,6 +159,17 @@
     </header>
     <div id="trommel-feld" class="trommel-feld"></div>
     <div class="daumen-platz"><button id="btn-trommel-daumen" class="daumen-btn" aria-label="Gemacht" hidden>👍</button></div>
+  </section>
+
+  <!-- Ziffern nachspuren: Ziffer Strich für Strich nachfahren, dann die Menge dazu (ab 4) -->
+  <section id="ziffern" class="screen">
+    <header class="topbar">
+      <button id="btn-ziffern-home" class="icon-btn" aria-label="Zurück">🏠</button>
+      <div id="ziffern-runden" class="runden-eier"></div>
+      <button id="btn-ziffern-laut" class="icon-btn" aria-label="Nochmal hören">🔊</button>
+    </header>
+    <div id="ziffern-feld" class="ziffern-feld"></div>
+    <div class="daumen-platz"><button id="btn-ziffern-daumen" class="daumen-btn" aria-label="Gemacht" hidden>👍</button></div>
   </section>
 
   <!-- Hol mir …: ganz echte Welt – „Hol mir zwei Löffel!“, das Kind holt, ein Erwachsener tippt 👍, dann wird gezählt -->
@@ -232,6 +244,11 @@
           <label class="umschalter"><input type="checkbox" id="holBaustein" data-option="holBaustein"> 🧱 Bausteine</label>
           <label class="umschalter"><input type="checkbox" id="holKuscheltier" data-option="holKuscheltier"> 🧸 Kuscheltiere</label>
         </div>
+        <p class="hinweis spiel-option" data-spiel="ziffern">„Ziffern nachspuren“ beginnt mit 1, 2 und 3. Die nächste Gruppe
+          erst dazunehmen, wenn die ersten Ziffern sicher klappen:</p>
+        <label class="umschalter spiel-option" data-spiel="ziffern"><input type="checkbox" id="ziffern456" data-option="ziffern456"> „Ziffern“: 4, 5 und 6 dazu</label>
+        <label class="umschalter spiel-option" data-spiel="ziffern"><input type="checkbox" id="ziffern789" data-option="ziffern789"> „Ziffern“: 7, 8 und 9 dazu</label>
+        <label class="umschalter spiel-option" data-spiel="ziffern"><input type="checkbox" id="ziffern0" data-option="ziffern0"> „Ziffern“: die 0 dazu („da ist nichts“)</label>
       </div>
 
       <div class="karte spiel-option" data-spiel="holmir">
@@ -319,6 +336,11 @@
           <label class="umschalter"><input type="checkbox" id="kind-holBaustein" data-option="holBaustein"> 🧱 Bausteine</label>
           <label class="umschalter"><input type="checkbox" id="kind-holKuscheltier" data-option="holKuscheltier"> 🧸 Kuscheltiere</label>
         </div>
+        <p class="hinweis spiel-option" data-spiel="ziffern">„Ziffern nachspuren“ (eher ab 4) beginnt mit 1, 2 und 3. Die
+          nächste Gruppe erst dazunehmen, wenn die ersten Ziffern sicher klappen:</p>
+        <label class="umschalter spiel-option" data-spiel="ziffern"><input type="checkbox" id="kind-ziffern456" data-option="ziffern456"> „Ziffern“: 4, 5 und 6 dazu</label>
+        <label class="umschalter spiel-option" data-spiel="ziffern"><input type="checkbox" id="kind-ziffern789" data-option="ziffern789"> „Ziffern“: 7, 8 und 9 dazu</label>
+        <label class="umschalter spiel-option" data-spiel="ziffern"><input type="checkbox" id="kind-ziffern0" data-option="ziffern0"> „Ziffern“: die 0 dazu („da ist nichts“)</label>
       </div>
       <div class="karte" id="karte-kind-stimme" hidden>
         <h3>Stimme</h3>
@@ -406,6 +428,7 @@
   </section>
 
   <script src="ansagen.js"></script>
+  <script src="striche.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

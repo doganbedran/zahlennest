@@ -38,3 +38,8 @@ Hauptstimme der Kinder, keine Aufnahmen (andere Sätze). Test `stimme`.
 **Eigene Dinge bei „Hol mir …“** (Elternbereich, bis 6, für alle Kinder): Liste `zn:eigeneDinge` (`[{ id 'd-…', name }]`),
 Foto in `medien` unter `dinge|<id>|bild`. Im Rundenplan als `eigen:<id>`; die Stimme nennt keinen Namen
 (`hol-eigen-n` „Hol mir zwei davon!“, `hol-zeig-jedes`/`hol-zeig-1-eigen`, Zählen mit `zaehlen-n`). Test `holeigen`.
+
+**Ziffern nachspuren**: Strichdaten `striche.js` (`ZIFFER_STRICHE`, Hilfsfunktionen wie in Wortnest), geführtes
+Spuren Strich für Strich (Abschnitt in `app.js`, Vorlage Wortnests „Geführtes Nachspuren“ und „Lauflicht“, ohne
+Vierlinien und Punkt-Striche). Farben fest Blau `#1d5fbf` (Start) und Orange `#b8470b` (Pfeile), kein Petrol.
+Gruppen-Schalter `ziffern456`, `ziffern789`, `ziffern0` je Kind. Test `ziffern` fährt per Pointer-Ereignissen nach.

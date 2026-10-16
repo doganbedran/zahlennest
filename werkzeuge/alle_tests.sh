@@ -46,6 +46,10 @@ LAEUFE=(
   "hol-tab|tests/hol.html|1280,800|90"
   "hol-quer|tests/hol.html|860,412|90"
   "holeigen|tests/holeigen.html|412,860|60"
+  "ziffern|tests/ziffern.html|412,860|90"
+  "ziffern-klein|tests/ziffern.html|360,640|90"
+  "ziffern-tab|tests/ziffern.html|1280,800|90"
+  "ziffern-quer|tests/ziffern.html|860,412|90"
   "sicherheit|tests/sicherheit.html|412,860|60"
   "offline|tests/offline.html|412,860|60"
 )

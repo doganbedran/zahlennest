@@ -34,6 +34,11 @@ hinzufügen“. Elternbereich: ⚙️ oben rechts 2 Sekunden halten. Fragen und 
   die Dinge, ein Erwachsener tippt 👍: „Leg sie hin! … Zeig auf jeden Löffel!“, die App zählt langsam mit, dann
   „Danke! Bring sie wieder zurück.“ 2 Runden, keine Zeitgrenze. Je Kind: welche Dinge (Löffel, Becher aus Plastik,
   Bausteine, Kuscheltiere – nur Ungefährliches) und Mengen 3 bis 5.
+- 3️⃣ **Ziffern nachspuren** (ab 4) – wie die Sandpapier-Ziffern: „Das ist die Drei.“, ein Lichtpunkt macht die
+  Schreibrichtung vor, das Kind fährt Strich für Strich nach (Grundschulform: 1 mit Aufstrich, 4 offen, 7 mit
+  Querstrich; blauer Startpunkt, orange Pfeile, Daten in `striche.js`). Danach erscheint die Menge als Punkte:
+  „Eins, zwei, drei. Drei!“ (Null: „Da ist nichts!“). Drei Ziffern je Besuch, dann „Mal eine Drei in die Luft!“.
+  Je Kind: 1 2 3, dann 4 5 6, 7 8 9 und die 0 dazunehmen (verwechselbare Paare 6/9, 1/7, 2/5 nie zusammen).
 
 Alle Spiele enden gleich: Das Spiel macht den Auftrag einmal vor, dann „Jetzt in echt!“ – der Bildschirm wird ruhig
 (👐, kleine Erinnerungskarte), das Kind macht es mit echten Dingen; ein Erwachsener tippt 👍, dann zählt die App mit.

@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 16;
+const APP_VERSION = 17;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -151,7 +151,7 @@ function kindBildHtml(k) {
 
 // Reihenfolge = Reihenfolge im Konzept (so werden sie nach und nach gebaut und freigeschaltet).
 // Montessori: ein Material kommt erst ins Regal, wenn es gezeigt wurde. Gespeichert wird, was AUSGEBLENDET ist.
-const ALLE_SPIELE = ['wieviele', 'mehr', 'korb', 'trommel', 'holmir'];
+const ALLE_SPIELE = ['wieviele', 'mehr', 'korb', 'trommel', 'holmir', 'ziffern'];
 const START_REGAL = ['wieviele'];
 const START_AUS = ALLE_SPIELE.filter((id) => !START_REGAL.includes(id));
 // Für Eltern: was jedes Spiel tut (die Kacheln zeigen den Kindern nur ein Bild)
@@ -161,6 +161,7 @@ const SPIEL_INFO = {
   korb: 'Dinge in den Korb schieben und dabei zählen (1–3, auf Wunsch bis 5)',
   trommel: 'So oft trommeln, wie gesagt wird (1–3, auf Wunsch bis 5)',
   holmir: 'Echte Dinge holen und zusammen zählen (mit Erwachsenem)',
+  ziffern: 'Ziffern mit dem Finger nachfahren, dann die Menge sehen (eher ab 4)',
 };
 // Fertige Spiele: id -> Startfunktion. Was hier fehlt, erscheint weder auf der Startseite noch im Regal.
 const SPIELE = {};
@@ -179,7 +180,7 @@ function einstellungenLaden() {
 
 // Schalter einzelner Spiele (je Kind, ohne Kinder app-weit): Name = Feld beim Kind, Schlüssel zn:<Name>, data-option
 const SPIEL_OPTIONEN = ['weniger', 'korbBis5', 'korbTippen', 'trommelBis5', 'holBis5',
-  'holLoeffel', 'holBecher', 'holBaustein', 'holKuscheltier'];
+  'holLoeffel', 'holBecher', 'holBaustein', 'holKuscheltier', 'ziffern456', 'ziffern789', 'ziffern0'];
 // Standard „an“ (sonst aus): die Dinge bei „Hol mir …“
 const SPIEL_STANDARD = { holLoeffel: true, holBecher: true, holBaustein: true, holKuscheltier: true };
 const optionStandard = (o) => !!SPIEL_STANDARD[o];
@@ -391,6 +392,7 @@ window.addEventListener('popstate', () => {
   korbStoppen();
   trommelStoppen();
   holStoppen();
+  ziffernStoppen();
   studioAbbrechen();
   studioMikrofonZu();
   const ziel = (history.state && history.state.screen) || 'home';
@@ -2159,6 +2161,591 @@ $('#btn-hol-laut').addEventListener('click', () => {
   if ((ende && !ende.hidden) || !hl.inEcht || hl.wartetZurueck) return;
   audio();
   inEchtNochmal(hl);
+});
+
+// ---------- Ziffern nachspuren (ab 4): Ziffer Strich für Strich nachfahren, dann die Menge dazu ----------
+// Wie die Sandpapier-Ziffern: „Das ist die Drei.“ – ein Lichtpunkt macht die Schreibrichtung vor – das Kind fährt
+// nach (geführt wie in Wortnest: blauer Startpunkt, orange Pfeile, kein Petrol) – danach die Menge als Punkte:
+// „Eins, zwei, drei. Drei!“ (bei der Null: „Null. Da ist nichts!“). Daneben fahren ist kein Fehler: die Spur bleibt
+// einfach nicht stehen; nach dreimal Abrutschen macht der Lichtpunkt es nochmal vor. Drei Ziffern je Besuch, dann
+// in echt: „Mal eine Drei mit dem Finger in die Luft!“ Gruppen (1 2 3 → 4 5 6 → 7 8 9 → 0) stellen die Eltern ein.
+
+const ZIFFERN_RUNDEN = 3;
+const ZIFFER_ZEIT = { daumen: 6000, auftragNochmal: 14000, mengePause: 1400, vormachenPause: 600, luftMalen: 2600 };
+const ZIFFER_FARBE = { umriss: '#c7b08a', offen: '#f4eee5', aktuell: '#e0c79c', fertig: '#ffffff', pfeil: '#b8470b', start: '#1d5fbf' };
+const ZIFFER_SPUR = ['#9b59b6', '#e0567c', '#e6a700'];   // Fingerspur, je Ziffer eine Farbe (kein Petrol, kein Blau)
+const ZIFFER_BREITE = 13;            // Strichbreite der Vorlage in Ziffer-Einheiten
+const ZIFFER_LICHT_PAUSE = 0.9;      // s Pause zwischen zwei Durchläufen des Lauflichts
+const ZIFFER_NACHGLUEHEN = 0.55;     // s, die ein Pfeil nachglüht
+const ZIFFER_ERINNERUNG = 6000;      // ms ohne Berührung bis zur Erinnerung
+const ZIFFER_OPTIONEN = { 1: 'ziffern456', 2: 'ziffern789', 3: 'ziffern0' };   // Gruppe -> Eltern-Schalter (1 2 3 immer)
+
+const zf = { runde: 0, runden: [], gesperrt: true, timer: null, nummer: 0, fertig: false, inEcht: false, auftrag: false,
+  // Tafel: Pfade in Bildschirm-Pixeln, aktueller Strich, Fortschritt darauf, Fingerstrich, gültige Spuren
+  breite: 0, hoehe: 0, pfade: [], strichNr: 0, fortschritt: 0, versuch: null, spuren: [], pointerId: null, letzter: null,
+  linienbreite: 22, strichBreite: 20, geschafft: true, abrutscher: 0,
+  // Lauflicht: Vormachen (Lichtpunkt fährt alle Striche ab), danach Pfeile auf dem aktuellen Strich
+  vormachen: null, zyklusStart: 0, letzteAktivitaet: 0, erinnert: false, erinnerungBis: 0, laeuft: false };
+const zfBausteine = spielBausteine('ziffern', zf);
+const { aktuell: zfAktuell, ansage: zfAnsage, zaehlen: zfZaehlen } = zfBausteine;
+const zfZiffer = () => zf.runden[zf.runde];
+const zfEl = (sel) => $(`#ziffern-feld ${sel}`);
+
+function ziffernStoppen() {
+  zfBausteine.stoppen();
+  zf.pointerId = null;
+  zf.versuch = null;
+  zf.geschafft = true;
+}
+
+// Drei Ziffern aus den freigeschalteten Gruppen: ohne Wiederholung, nie ein verwechselbares Paar, aufsteigend.
+// Mit mehreren Gruppen kommen mindestens zwei aus der neuesten (sie ist gerade dran).
+function ziffernRundenPlanen() {
+  const gruppen = ZIFFER_GRUPPEN.filter((_, i) => !i || zustand[ZIFFER_OPTIONEN[i]]);
+  const neueste = gruppen[gruppen.length - 1];
+  const alle = gruppen.flat();
+  if (gruppen.length === 1) return [...neueste].sort((a, b) => a - b).slice(0, ZIFFERN_RUNDEN);
+  const passt = (wahl, z) => !wahl.includes(z) && !ZIFFER_VERWECHSLUNG.some(([a, b]) => (z === a && wahl.includes(b)) || (z === b && wahl.includes(a)));
+  for (let versuch = 0; versuch < 50; versuch++) {
+    const wahl = [];
+    mischen(neueste).forEach((z) => { if (wahl.length < 2 && passt(wahl, z)) wahl.push(z); });
+    mischen(alle).forEach((z) => { if (wahl.length < ZIFFERN_RUNDEN && passt(wahl, z)) wahl.push(z); });
+    if (wahl.length === ZIFFERN_RUNDEN) return wahl.sort((a, b) => a - b);
+  }
+  return [1, 2, 3];
+}
+
+function zfRundenZeichnen() {
+  $('#ziffern-runden').innerHTML = `<span class="gruppe">${
+    Array.from({ length: ZIFFERN_RUNDEN }, (_, i) => `<span class="${i < zf.runde ? 'voll' : ''}"></span>`).join('')}</span>`;
+}
+
+// Punkte zur Menge: bis 5 wie in den anderen Spielen (Würfelbild), 6–9 als Fünferreihe + Rest darunter
+function zifferMengeSvg(n) {
+  if (n <= 5) return korbKarteSvg(n);
+  const punkte = Array.from({ length: n }, (_, i) => `<circle class="karte-punkt" cx="${14 + (i % 5) * 18}" cy="${i < 5 ? 38 : 62}" r="7.5"/>`);
+  return `<svg viewBox="0 0 100 100" aria-hidden="true">${punkte.join('')}</svg>`;
+}
+
+// --- Tafel ---
+
+function zifferFeldAufbauen() {
+  const feld = $('#ziffern-feld');
+  feld.closest('.screen').classList.remove('ruhig');
+  feld.innerHTML = '<div class="ziffer-tafel"><canvas class="ziffer-vorlage"></canvas><canvas class="ziffer-lichter"></canvas>'
+    + '<canvas class="ziffer-spur"></canvas><div class="ziffer-start" hidden></div></div>'
+    + '<div class="ziffer-menge in-echt-karte" aria-hidden="true"></div>';
+  const spur = zfEl('.ziffer-spur');
+  spur.addEventListener('pointerdown', zifferDown);
+  spur.addEventListener('pointermove', zifferMove);
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => spur.addEventListener(ev, zifferStrichEnde));
+}
+
+// Tafel für die aktuelle Ziffer (neu nach dem Drehen des Geräts: dann beginnt die Ziffer von vorn)
+function zifferTafelAufbauen() {
+  const tafel = zfEl('.ziffer-tafel');
+  if (!tafel) return false;
+  const rect = tafel.getBoundingClientRect();
+  if (!rect.width || !rect.height) return false;
+  const dpr = window.devicePixelRatio || 1;
+  zf.breite = rect.width;
+  zf.hoehe = rect.height;
+  tafel.querySelectorAll('canvas').forEach((c) => { c.width = Math.round(rect.width * dpr); c.height = Math.round(rect.height * dpr); });
+  const daten = ZIFFER_STRICHE[zfZiffer()];
+  const alle = daten.flat();
+  const xs = alle.map((p) => p[0]), ys = alle.map((p) => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  // Ziffern sind höher als breit: im Hochformat die Höhe nutzen (höchstens 1,4 × Breite, sonst wird es ein Strich)
+  const f = Math.min(rect.width * 0.84 / (maxX - minX + 2 * ZIFFER_BREITE),
+    Math.min(rect.height, rect.width * 1.4) * 0.84 / (maxY - minY + 2 * ZIFFER_BREITE));
+  const ox = rect.width / 2 - ((minX + maxX) / 2) * f;
+  const oy = rect.height / 2 - ((minY + maxY) / 2) * f;
+  zf.strichBreite = ZIFFER_BREITE * f;
+  zf.linienbreite = Math.max(22, zf.strichBreite * 1.15);
+  zf.pfade = daten.map((punkte) => {
+    const p = punkte.map(([x, y]) => ({ x: ox + x * f, y: oy + y * f }));
+    const l = [0];
+    for (let i = 1; i < p.length; i++) l.push(l[i - 1] + Math.hypot(p[i].x - p[i - 1].x, p[i].y - p[i - 1].y));
+    return { p, l, L: l[l.length - 1] };
+  });
+  Object.assign(zf, { strichNr: 0, fortschritt: 0, versuch: null, spuren: [], pointerId: null, letzter: null, geschafft: false, abrutscher: 0 });
+  zifferSpurenZeichnen();
+  zifferVorlageZeichnen();
+  return true;
+}
+
+function zifferPunktBei(pfad, s) {
+  s = Math.max(0, Math.min(pfad.L, s));
+  let i = 1;
+  while (i < pfad.p.length - 1 && pfad.l[i] < s) i++;
+  const a = pfad.p[i - 1], b = pfad.p[i];
+  const t = (s - pfad.l[i - 1]) / ((pfad.l[i] - pfad.l[i - 1]) || 1);
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+
+// Nächster Punkt auf dem Strich, nur im Bereich [von, bis] (damit z. B. bei der Null nicht zum Ende gesprungen wird)
+function zifferProjizieren(pfad, q, von, bis) {
+  let best = { s: von, d: Infinity };
+  for (let i = 1; i < pfad.p.length; i++) {
+    if (pfad.l[i] < von || pfad.l[i - 1] > bis) continue;
+    const a = pfad.p[i - 1], b = pfad.p[i];
+    const dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((q.x - a.x) * dx + (q.y - a.y) * dy) / len2));
+    const d = Math.hypot(a.x + dx * t - q.x, a.y + dy * t - q.y);
+    const s = Math.max(von, Math.min(bis, pfad.l[i - 1] + t * (pfad.l[i] - pfad.l[i - 1])));
+    if (d < best.d) best = { s, d };
+  }
+  return best;
+}
+
+// Toleranzen in Pixeln, großzügig für Kinderfinger (wie Wortnest)
+const zfFangRadius = () => Math.max(34, zf.strichBreite * 1.6);
+const zfSpurToleranz = () => Math.max(26, zf.strichBreite * 1.3);
+const zfAbrutschGrenze = () => Math.max(48, zf.strichBreite * 2.4);
+
+// „Sandpapier-Gefühl“: leichtes Vibrieren, solange der Finger auf dem Strich vorankommt (Android; iPhone kann es nicht)
+let zfVibriertAm = 0;
+function zfVibrieren(muster, nurAlleMs = 0) {
+  if (typeof navigator.vibrate !== 'function') return;
+  const jetzt = performance.now();
+  if (nurAlleMs && jetzt - zfVibriertAm < nurAlleMs) return;
+  zfVibriertAm = jetzt;
+  try { navigator.vibrate(muster); } catch { /* manche Geräte erlauben es nicht */ }
+}
+
+function zifferPfadZeichnen(c, pfad) {
+  c.beginPath();
+  c.moveTo(pfad.p[0].x, pfad.p[0].y);
+  for (let i = 1; i < pfad.p.length; i++) c.lineTo(pfad.p[i].x, pfad.p[i].y);
+  c.stroke();
+}
+
+function zifferVorlageZeichnen() {
+  const el = zfEl('.ziffer-vorlage');
+  if (!el) return;
+  const c = el.getContext('2d');
+  const dpr = el.width / zf.breite;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, el.width, el.height);
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  c.lineWidth = zf.strichBreite + 4;
+  c.strokeStyle = ZIFFER_FARBE.umriss;
+  zf.pfade.forEach((pfad) => zifferPfadZeichnen(c, pfad));
+  c.lineWidth = zf.strichBreite;
+  zf.pfade.forEach((pfad, i) => { c.strokeStyle = i < zf.strichNr ? ZIFFER_FARBE.fertig : ZIFFER_FARBE.offen; zifferPfadZeichnen(c, pfad); });
+  const pfad = zf.pfade[zf.strichNr];
+  if (!pfad) { zifferStartZeigen(null); return; }
+  c.strokeStyle = ZIFFER_FARBE.aktuell;
+  zifferPfadZeichnen(c, pfad);
+  zifferStartZeigen(zf.vormachen ? null : zifferPunktBei(pfad, zf.fortschritt));
+}
+
+// Blauer Punkt: hier geht es los (bzw. weiter), mit der Nummer des Strichs
+function zifferStartZeigen(p) {
+  const el = zfEl('.ziffer-start');
+  if (!el) return;
+  if (!p) { el.hidden = true; return; }
+  const g = Math.min(56, Math.max(40, zf.strichBreite * 0.9));
+  el.hidden = false;
+  Object.assign(el.style, { width: `${g}px`, height: `${g}px`, left: `${p.x - g / 2}px`, top: `${p.y - g / 2}px` });
+  el.textContent = zf.strichNr + 1;
+}
+
+function zifferHinweis() {
+  const el = zfEl('.ziffer-start');
+  if (!el) return;
+  el.classList.remove('hinweis-puls');
+  void el.offsetWidth;
+  el.classList.add('hinweis-puls');
+}
+
+function zifferSpurStueck(c, von, bis) {
+  const farbe = ZIFFER_SPUR[zf.runde % ZIFFER_SPUR.length];
+  if (Math.hypot(bis.x - von.x, bis.y - von.y) < 0.5) {
+    c.fillStyle = farbe;
+    c.beginPath(); c.arc(bis.x, bis.y, zf.linienbreite / 2, 0, Math.PI * 2); c.fill();
+    return;
+  }
+  c.lineCap = 'round'; c.lineJoin = 'round'; c.lineWidth = zf.linienbreite; c.strokeStyle = farbe;
+  c.beginPath(); c.moveTo(von.x, von.y); c.lineTo(bis.x, bis.y); c.stroke();
+}
+
+function zifferLinie(von, bis) {
+  const el = zfEl('.ziffer-spur');
+  const c = el.getContext('2d');
+  const dpr = el.width / zf.breite;
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  zifferSpurStueck(c, von, bis);
+}
+
+function zifferSpurenZeichnen() {
+  const el = zfEl('.ziffer-spur');
+  if (!el) return;
+  const c = el.getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, el.width, el.height);
+  for (const punkte of zf.spuren) for (let i = 0; i < punkte.length; i++) zifferLinie(punkte[Math.max(0, i - 1)], punkte[i]);
+}
+
+function zifferPunkt(e) {
+  const r = zfEl('.ziffer-spur').getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+function zifferDown(e) {
+  // Ein neuer erster Finger heißt: der vorige Kontakt ist vorbei, auch wenn sein „pointerup“ nie ankam
+  if (zf.pointerId !== null && e.isPrimary && e.pointerId !== zf.pointerId) zifferStrichEnde({ pointerId: zf.pointerId });
+  if (zf.pointerId !== null || zf.geschafft || !zfAktuell(zf.nummer)) return;
+  e.preventDefault();
+  audio();
+  zf.pointerId = e.pointerId;
+  try { e.target.setPointerCapture(e.pointerId); } catch { /* ältere Browser */ }
+  const p = zifferPunkt(e);
+  zf.letzter = p;
+  zifferLinie(p, p);
+  // Kind legt los: Vormachen sofort beenden
+  zf.vormachen = null;
+  zf.letzteAktivitaet = performance.now();
+  zf.erinnert = false;
+  const pfad = zf.pfade[zf.strichNr];
+  const start = zifferPunktBei(pfad, zf.fortschritt);
+  zf.versuch = { punkte: [p], folgt: Math.hypot(p.x - start.x, p.y - start.y) <= zfFangRadius(), startFortschritt: zf.fortschritt };
+  zifferVorlageZeichnen();
+}
+
+function zifferMove(e) {
+  if (e.pointerId !== zf.pointerId) return;
+  const gesammelt = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+  for (const ev of gesammelt.length ? gesammelt : [e]) {
+    const p = zifferPunkt(ev);
+    // Auf dem Weg zum nächsten Strich (Finger nicht abgesetzt) keine Spur malen
+    if (!(zf.versuch && zf.versuch.unterwegs)) zifferLinie(zf.letzter, p);
+    zf.letzter = p;
+    zifferBewegung(p);
+    if (zf.geschafft) return;
+  }
+}
+
+function zifferBewegung(p) {
+  const v = zf.versuch;
+  if (!v) return;
+  zf.letzteAktivitaet = performance.now();
+  if (v.unterwegs) { zifferUnterwegs(p); return; }
+  v.punkte.push(p);
+  if (!v.folgt) return;
+  const pfad = zf.pfade[zf.strichNr];
+  const b = zf.strichBreite;
+  const treffer = zifferProjizieren(pfad, p, zf.fortschritt - b, zf.fortschritt + 2.5 * b);
+  if (treffer.d > zfAbrutschGrenze()) { zifferAbgerutscht(); return; }
+  if (treffer.d <= zfSpurToleranz() && treffer.s > zf.fortschritt) {
+    zf.fortschritt = treffer.s;
+    zfVibrieren(10, 70);
+    zifferStartZeigen(zifferPunktBei(pfad, zf.fortschritt));
+  }
+  if (zf.fortschritt >= pfad.L - b * 0.2) zifferStrichFertig();
+}
+
+// Finger ist nach einem fertigen Strich liegen geblieben: am Startpunkt des nächsten Strichs geht es weiter
+function zifferUnterwegs(p) {
+  const start = zifferPunktBei(zf.pfade[zf.strichNr], zf.fortschritt);
+  if (Math.hypot(p.x - start.x, p.y - start.y) > zfFangRadius()) return;
+  zf.versuch = { punkte: [p], folgt: true, startFortschritt: zf.fortschritt };
+}
+
+function zifferStrichEnde(e) {
+  if (e.pointerId !== zf.pointerId) return;
+  zf.pointerId = null;
+  zf.letzter = null;
+  zf.letzteAktivitaet = zf.zyklusStart = performance.now();
+  const v = zf.versuch;
+  zf.versuch = null;
+  if (!v || zf.geschafft) return;
+  // Gültige Spur bleibt stehen (absetzen und weitermachen ist erlaubt), alles andere verschwindet still
+  if (v.folgt) zf.spuren.push(v.punkte);
+  else if (!v.unterwegs && !v.fertig) { zifferSpurenZeichnen(); zifferHinweis(); }
+}
+
+function zifferAbgerutscht() {
+  zfVibrieren([30, 60, 30]);
+  const v = zf.versuch;
+  v.folgt = false;
+  v.punkte = [];
+  zf.fortschritt = v.startFortschritt;
+  zifferSpurenZeichnen();
+  zifferVorlageZeichnen();
+  zifferHinweis();
+  // Nach dreimal Abrutschen: der Lichtpunkt macht die Ziffer nochmal vor (kein „falsch“)
+  if (++zf.abrutscher >= 3) { zf.abrutscher = 0; zifferVormachen(); }
+}
+
+function zifferStrichFertig() {
+  const v = zf.versuch;
+  if (v) { zf.spuren.push(v.punkte); v.punkte = []; v.folgt = false; v.fertig = true; }
+  zfVibrieren(35);
+  zf.strichNr++;
+  zf.fortschritt = 0;
+  zf.abrutscher = 0;
+  zf.zyklusStart = performance.now();
+  zifferKlick();
+  if (zf.strichNr >= zf.pfade.length) { zifferVorlageZeichnen(); zifferGeschafft(zf.nummer); return; }
+  zifferVorlageZeichnen();
+  // Finger bleibt liegen (wie beim Schreiben): weiter zum nächsten Strich, ohne Spur auf dem Weg
+  if (v && zf.pointerId !== null && zf.letzter) {
+    zf.versuch = { punkte: [], folgt: false, unterwegs: true };
+    zifferUnterwegs(zf.letzter);
+  }
+}
+
+// Kurzer heller Ton, wenn ein Strich geschafft ist
+function zifferKlick() {
+  const c = audio();
+  if (!c) return;
+  const osc = c.createOscillator(), gain = c.createGain(), t = c.currentTime;
+  osc.frequency.value = 880 + zf.strichNr * 110;
+  gain.gain.setValueAtTime(0.18, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+  osc.connect(gain).connect(c.destination);
+  osc.start(t);
+  osc.stop(t + 0.2);
+}
+
+// --- Lauflicht: erst fährt ein Lichtpunkt alle Striche vor, dann zeigen Pfeile auf dem aktuellen Strich den Weg ---
+
+const zfLichtTempo = () => Math.max(260, zf.strichBreite * 6);   // Pixel pro Sekunde
+const zfPfeilAbstand = () => Math.max(32, zf.strichBreite * 1.8);
+
+function zifferPfeilStellen(pfad, ab = 0) {
+  const abstand = zfPfeilAbstand(), stellen = [];
+  for (let s = abstand * 0.6; s < pfad.L - abstand * 0.3; s += abstand) if (s > ab) stellen.push(s);
+  return stellen;
+}
+
+function zifferVormachen() {
+  zf.vormachen = { start: performance.now() };
+  zf.letzteAktivitaet = performance.now();
+  zf.erinnert = false;
+  zifferStartZeigen(null);
+  zifferLichtStarten();
+}
+
+function zifferLichtStarten() {
+  if (zf.laeuft) return;
+  zf.laeuft = true;
+  requestAnimationFrame(zifferLichtSchritt);
+}
+
+function zifferLichterLeeren() {
+  const el = zfEl('.ziffer-lichter');
+  if (!el) return null;
+  const c = el.getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, el.width, el.height);
+  c.setTransform(el.width / zf.breite, 0, 0, el.width / zf.breite, 0, 0);
+  return c;
+}
+
+function zifferLichtSchritt(jetzt) {
+  if (zf.geschafft || !$('#ziffern').classList.contains('active') || !zfEl('.ziffer-lichter')) {
+    zf.laeuft = false;
+    zifferLichterLeeren();
+    return;
+  }
+  zifferLichterZeichnen(jetzt);
+  requestAnimationFrame(zifferLichtSchritt);
+}
+
+// Vormachen: wo ist der Lichtpunkt nach t Sekunden? Striche nacheinander, mit kurzer Pause dazwischen
+function zifferVormachenStand(t) {
+  const v = zfLichtTempo();
+  for (let nr = 0; nr < zf.pfade.length; nr++) {
+    const dauer = zf.pfade[nr].L / v;
+    if (t <= dauer) return { nr, kopf: t * v };
+    t -= dauer + 0.25;
+    if (t < 0) return { nr, kopf: zf.pfade[nr].L };
+  }
+  return null;
+}
+
+function zifferLichterZeichnen(jetzt) {
+  const c = zifferLichterLeeren();
+  if (!c) return;
+  const v = zfLichtTempo();
+  if (zf.vormachen) {
+    const z = zifferVormachenStand((jetzt - zf.vormachen.start) / 1000);
+    if (!z) {
+      zf.vormachen = null;
+      zf.zyklusStart = zf.letzteAktivitaet = jetzt;
+      zifferVorlageZeichnen();   // jetzt den Startpunkt zeigen
+      return;
+    }
+    for (let nr = 0; nr <= z.nr; nr++) {
+      const pfad = zf.pfade[nr];
+      const kopf = nr < z.nr ? pfad.L : z.kopf;
+      for (const s of zifferPfeilStellen(pfad)) {
+        if (s > kopf) continue;
+        const glut = nr < z.nr ? 0.5 : Math.exp(-((kopf - s) / v) / ZIFFER_NACHGLUEHEN);
+        zifferPfeil(c, pfad, s, Math.max(0.5, glut), 1);
+      }
+    }
+    zifferGeisterpunkt(c, zifferPunktBei(zf.pfade[z.nr], z.kopf));
+    return;
+  }
+  const pfad = zf.pfade[zf.strichNr];
+  if (!pfad) return;
+  if (!zf.erinnert && jetzt - zf.letzteAktivitaet > ZIFFER_ERINNERUNG && zf.pointerId === null) {
+    zf.erinnert = true;
+    zf.erinnerungBis = jetzt + 2500;
+    zf.zyklusStart = jetzt;
+    zifferHinweis();
+  }
+  const kraeftig = jetzt < zf.erinnerungBis;
+  const ab = zf.fortschritt;
+  const dauer = (pfad.L - ab) / v;
+  const t = ((jetzt - zf.zyklusStart) / 1000) % (dauer + ZIFFER_LICHT_PAUSE);
+  const kopf = ab + t * v;
+  for (const s of zifferPfeilStellen(pfad, ab)) {
+    const glut = s > kopf ? 0 : Math.exp(-((kopf - s) / v) / ZIFFER_NACHGLUEHEN);
+    zifferPfeil(c, pfad, s, 0.28 + 0.72 * glut, kraeftig ? 1.35 : 1);
+  }
+}
+
+function zifferPfeil(c, pfad, s, staerke, groesse) {
+  const p = zifferPunktBei(pfad, s), q = zifferPunktBei(pfad, s + 1);
+  const w = Math.atan2(q.y - p.y, q.x - p.x);
+  const g = zf.strichBreite * 0.42 * groesse * (0.85 + 0.25 * staerke);
+  c.save();
+  c.globalAlpha = Math.min(1, staerke);
+  c.strokeStyle = ZIFFER_FARBE.pfeil;
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  c.lineWidth = Math.max(3.5, zf.strichBreite * 0.16) * groesse;
+  if (staerke > 0.6) { c.shadowColor = 'rgba(242, 140, 56, 0.95)'; c.shadowBlur = 12 * staerke; }
+  c.beginPath();
+  c.moveTo(p.x - g * Math.cos(w - 0.6), p.y - g * Math.sin(w - 0.6));
+  c.lineTo(p.x, p.y);
+  c.lineTo(p.x - g * Math.cos(w + 0.6), p.y - g * Math.sin(w + 0.6));
+  c.stroke();
+  c.restore();
+}
+
+function zifferGeisterpunkt(c, p) {
+  const r = Math.max(12, zf.strichBreite * 0.38);
+  c.save();
+  c.shadowColor = 'rgba(29, 95, 191, 0.8)';
+  c.shadowBlur = 18;
+  c.fillStyle = '#ffffff';
+  c.strokeStyle = ZIFFER_FARBE.start;
+  c.lineWidth = 4;
+  c.beginPath();
+  c.arc(p.x, p.y, r, 0, Math.PI * 2);
+  c.fill();
+  c.stroke();
+  c.restore();
+}
+
+// --- Ablauf ---
+
+async function ziffernNeueRunde() {
+  ziffernStoppen();
+  const nr = zf.nummer;
+  zf.fertig = false;
+  zifferFeldAufbauen();
+  if (!zifferTafelAufbauen()) return;
+  zifferVormachen();
+  // „Das ist die Drei.“ – das Kind darf schon während der Ansage loslegen
+  await zfAnsage(nr, `ziffer-ist-${zfZiffer()}`);
+}
+
+// Ziffer geschafft: kurzer Klang, daneben erscheint die Menge, die Stimme zählt (Punkte leuchten)
+async function zifferGeschafft(nr) {
+  zf.geschafft = true;
+  zf.pointerId = null;
+  zifferLichterLeeren();
+  glockenspiel();
+  const n = zfZiffer();
+  const menge = zfEl('.ziffer-menge');
+  menge.innerHTML = n ? zifferMengeSvg(n) : '';
+  menge.classList.toggle('leer', !n);
+  menge.classList.add('da');
+  await warten(500);
+  if (n) { if (!(await zfZaehlen(nr, `zaehlen-${n}`, [...menge.querySelectorAll('.karte-punkt')]))) return; }
+  else if (!(await zfAnsage(nr, 'ziffer-null-nichts'))) return;
+  await warten(ZIFFER_ZEIT.mengePause);
+  if (!zfAktuell(nr)) return;
+  zf.runde++;
+  zfRundenZeichnen();
+  if (zf.runde < ZIFFERN_RUNDEN) ziffernNeueRunde();
+  else ziffernAuftrag();
+}
+
+// ----- Echte Welt: „Mal eine Drei mit dem Finger in die Luft!“ – vormachen (Ziffer malt sich), dann in echt -----
+
+async function ziffernAuftrag() {
+  ziffernStoppen();
+  const nr = zf.nummer;
+  zf.auftrag = true;
+  zf.fertig = false;
+  $('#btn-ziffern-daumen').hidden = true;
+  const n = zf.runden[ZIFFERN_RUNDEN - 1];
+  const feld = $('#ziffern-feld');
+  feld.innerHTML = `<div class="ziffer-luft malt">${zifferSvg(n, '#e0c79c')}<span class="ziffer-finger" aria-hidden="true">☝️</span></div>`;
+  if (!(await zfAnsage(nr, 'ziffer-luft-vor'))) return;
+  await warten(ZIFFER_ZEIT.vormachenPause);
+  if (!zfAktuell(nr)) return;
+  inEcht({ z: zf, nr, aktuell: zfAktuell, ansage: zfAnsage, buehne: feld, knopf: $('#btn-ziffern-daumen'),
+    karteHtml: `${zifferSvg(n)}<span class="karte-bild">☝️</span>`, sagen: (nr2) => zfAnsage(nr2, `ziffer-luft-${n}`),
+    zeit: ZIFFER_ZEIT });
+}
+
+async function ziffernAuftragErledigt(nr) {
+  const karte = inEchtBestaetigt(zf, $('#btn-ziffern-daumen'));
+  if (!karte) return;
+  karte.classList.add('malt');
+  glockenspiel();
+  await warten(400);
+  if (!(await zfAnsage(nr, 'ziffer-luft-fertig'))) return;
+  spielEnde('ziffern', ziffernNeu);
+}
+
+$('#btn-ziffern-daumen').addEventListener('click', () => { audio(); if (zf.inEcht) ziffernAuftragErledigt(zf.nummer); });
+
+function ziffernNeu() {
+  ziffernStoppen();
+  Object.assign(zf, { runde: 0, runden: ziffernRundenPlanen(), fertig: false, auftrag: false, inEcht: false });
+  $('#btn-ziffern-daumen').hidden = true;
+  zfRundenZeichnen();
+  ziffernNeueRunde();
+}
+
+function ziffernStarten() {
+  spielEndeWeg('ziffern');
+  zeigen('ziffern');
+  ziffernNeu();
+}
+SPIELE.ziffern = ziffernStarten;
+// Kachel: eine Drei mit blauem Startpunkt (wie beim Spuren)
+$('#home .spiel-btn[data-spiel="ziffern"]').innerHTML = zifferSvg(3, '#e0c79c').replace('class="ziffer-svg"', 'class="kachel-bild ziffer-svg"')
+  .replace('</svg>', '<circle cx="8.3" cy="12" r="9" fill="#1d5fbf"/></svg>');
+
+$('#btn-ziffern-home').addEventListener('click', () => { ziffernStoppen(); wiedergabeStoppen(); zurStartseite(); });
+// 🔊: beim Spuren Name nochmal und Lichtpunkt nochmal; in echt den Auftrag
+$('#btn-ziffern-laut').addEventListener('click', () => {
+  const ende = $('#ziffern .spiel-ende');
+  if (ende && !ende.hidden) return;
+  audio();
+  if (zf.inEcht) { inEchtNochmal(zf); return; }
+  if (zf.auftrag || zf.geschafft) return;
+  zifferVormachen();
+  zfAnsage(zf.nummer, `ziffer-ist-${zfZiffer()}`);
+});
+// Gerät gedreht: Tafel neu einpassen (die Ziffer beginnt von vorn)
+window.addEventListener('resize', () => {
+  if (!$('#ziffern').classList.contains('active') || zf.geschafft || zf.auftrag || !zfEl('.ziffer-tafel')) return;
+  if (Math.abs(zfEl('.ziffer-tafel').getBoundingClientRect().width - zf.breite) < 1
+    && Math.abs(zfEl('.ziffer-tafel').getBoundingClientRect().height - zf.hoehe) < 1) return;
+  if (zifferTafelAufbauen()) zifferVormachen();
 });
 
 // ---------- Elternbereich (2 Sekunden gedrückt halten) ----------
