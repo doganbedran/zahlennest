@@ -61,6 +61,9 @@ LAEUFE=(
   "jedem-klein|tests/jedem.html|360,640|90"
   "jedem-tab|tests/jedem.html|1280,800|90"
   "jedem-quer|tests/jedem.html|860,412|90"
+  "huepfen|tests/huepfen.html|412,860|90"
+  "huepfen-klein|tests/huepfen.html|360,640|90"
+  "huepfen-quer|tests/huepfen.html|860,412|90"
   "sicherheit|tests/sicherheit.html|412,860|60"
   "offline|tests/offline.html|412,860|60"
 )

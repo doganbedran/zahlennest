@@ -26,7 +26,7 @@ ANSAGEN = dict(re.findall(r"'([a-z0-9-]+)': \['([^']+)'", (PROJEKT / 'ansagen.js
 TEILE = ['ansagen']
 # Zählfolgen („Eins, zwei, drei. Drei!“): langsam, mit deutlicher Pause nach jeder Zahl – ein Kind zählt mit dem Finger
 # mit. Weiter ein einziger Piper-Lauf (Satzmelodie bleibt), nur die Pausen zwischen den Sätzen werden eingefügt.
-ZAEHLFOLGE = re.compile(r'^(zaehlen-\d|finger-\d|korb-welt-\d-fertig|trommel-welt-\d-fertig|trommel-vor-\d|hol-fertig-[1-5]-\w+)$')
+ZAEHLFOLGE = re.compile(r'^(zaehlen-\d|finger-\d|korb-welt-\d-fertig|trommel-welt-\d-fertig|trommel-vor-\d|hol-fertig-[1-5]-\w+|zaehlen-10|huepfen-vers-\d+)$')
 ZAEHL_TEMPO = 1.3        # länger gesprochen (1.0 = normal)
 ZAEHL_PAUSE = 0.55       # Sekunden Pause nach jeder Zahl
 

@@ -267,4 +267,15 @@ const ANSAGEN = {
   'jedem-fertig-4-loeffel': ['Jeder hat einen Löffel. Vier Tiere, vier Löffel – gleich viele!', 'Jedem eins'],
   'jedem-welt': ['Deck den Tisch: Leg für jeden einen Löffel hin!', 'Jedem eins'],
   'jedem-welt-fertig': ['Jeder hat einen Löffel. Danke fürs Tischdecken!', 'Jedem eins'],
+  // Zahlen-Hüpfen: der Vers als ganze Aufnahme (je Zahl ein Hüpfer, danach ein Satz), Zahlwort je Stein
+  'huepfen-vers-5': ['Eins, zwei, drei, vier, fünf. Der Frosch ist da!', 'Zahlen-Hüpfen'],
+  'huepfen-vers-10': ['Eins, zwei, drei, vier, fünf, sechs, sieben, acht, neun, zehn. Jetzt bleibt der Frosch stehn!', 'Zahlen-Hüpfen'],
+  'huepfen-du': ['Jetzt du! Schieb den Frosch von Stein zu Stein.', 'Zahlen-Hüpfen'],
+  'korb-zahl-10': ['zehn', 'Zahlen-Hüpfen'],
+  'zaehlen-10': ['Eins, zwei, drei, vier, fünf, sechs, sieben, acht, neun, zehn. Zehn!', 'Zahlen-Hüpfen'],
+  'huepfen-ende-5': ['Fünf Steine! Der Frosch ist da!', 'Zahlen-Hüpfen'],
+  'huepfen-ende-10': ['Zehn Steine! Jetzt bleibt der Frosch stehn!', 'Zahlen-Hüpfen'],
+  'huepfen-welt-5': ['Jetzt hüpfst du! Fünfmal – wir zählen zusammen.', 'Zahlen-Hüpfen'],
+  'huepfen-welt-10': ['Jetzt hüpfst du! Zehnmal – wir zählen zusammen.', 'Zahlen-Hüpfen'],
+  'huepfen-fertig': ['Du bist gehüpft und hast mitgezählt!', 'Zahlen-Hüpfen'],
 };

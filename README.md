@@ -50,6 +50,9 @@ hinzufügen“. Elternbereich: ⚙️ oben rechts 2 Sekunden halten. Fragen und 
 - 🐻 **Jedem eins** (ab 3) – eins zu eins ohne Zählen: Kuscheltiere sitzen am Tisch, das Kind schiebt jedem einen
   Teller (dann Becher, dann Löffel) hin; wer etwas hat, hüpft. Erst am Ende: „Drei Tiere, drei Becher – gleich viele!“.
   Zum Schluss: „Deck den Tisch: Leg für jeden einen Löffel hin!“
+- 🐸 **Zahlen-Hüpfen** (ab 3) – Abzählvers für die Zahlwortreihe: Die App spricht den Vers in einem Zug, der Frosch
+  hüpft im Takt von Stein zu Stein; dann schiebt das Kind ihn (Zahlwort je Stein, nur der nächste Stein zählt).
+  „Fünf Steine!“ Zum Schluss hüpft das Kind selbst, die App zählt mit. Je Kind bis 5 oder bis 10.
 
 Alle Spiele enden gleich: Das Spiel macht den Auftrag einmal vor, dann „Jetzt in echt!“ – der Bildschirm wird ruhig
 (👐, kleine Erinnerungskarte), das Kind macht es mit echten Dingen; ein Erwachsener tippt 👍, dann zählt die App mit.

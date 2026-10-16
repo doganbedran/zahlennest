@@ -563,3 +563,19 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 .kachel-jedem { display: grid; grid-template-columns: 1fr 1fr; width: 76%; font-size: 2.2rem; text-align: center; line-height: 1.1; }
 .kachel-jedem .k-ding svg { width: 70%; height: auto; }
 @media (prefers-reduced-motion: reduce) { .jedem-ding { transition: none; } }
+
+/* ---------- Zahlen-Hüpfen: Teich mit Steinen, Frosch ---------- */
+#huepfen, .huepfen-feld { touch-action: none; overscroll-behavior: none; }
+.huepfen-feld { flex: 1; position: relative; min-height: 0; }
+.teich { position: absolute; inset: 8px 12px 12px; border-radius: 40px; background: #cfe6f3; }
+.stein { position: absolute; border-radius: 50%; background: #a9a39a; border: 3px solid #7d766c; box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.12);
+  transition: background 0.3s; }
+.stein.leuchtet { background: #f5c518; border-color: #b07800; }
+.stein.pulsiert { animation: warten-puls 1.6s ease-in-out 2; }
+.frosch { position: absolute; left: 0; top: 0; display: flex; align-items: center; justify-content: center; line-height: 1;
+  z-index: 3; touch-action: none; transition: transform 0.3s ease-out; }
+.frosch.greift { transition: none; }
+.frosch.huepft { animation: ding-huepfen 0.4s ease; }
+.kachel-huepfen { display: grid; justify-items: center; font-size: 2.6rem; line-height: 1; }
+.kachel-huepfen .k-stein { width: 1.2em; height: 0.36em; border-radius: 50%; background: #a9a39a; margin-top: 4px; }
+@media (prefers-reduced-motion: reduce) { .frosch { transition: none; } }

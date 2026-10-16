@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 21;
+const APP_VERSION = 22;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -151,7 +151,7 @@ function kindBildHtml(k) {
 
 // Reihenfolge = Reihenfolge im Konzept (so werden sie nach und nach gebaut und freigeschaltet).
 // Montessori: ein Material kommt erst ins Regal, wenn es gezeigt wurde. Gespeichert wird, was AUSGEBLENDET ist.
-const ALLE_SPIELE = ['wieviele', 'mehr', 'korb', 'trommel', 'holmir', 'ziffern', 'welche', 'faecher', 'jedem'];
+const ALLE_SPIELE = ['wieviele', 'mehr', 'korb', 'trommel', 'holmir', 'ziffern', 'welche', 'faecher', 'jedem', 'huepfen'];
 const START_REGAL = ['wieviele'];
 const START_AUS = ALLE_SPIELE.filter((id) => !START_REGAL.includes(id));
 // Für Eltern: was jedes Spiel tut (die Kacheln zeigen den Kindern nur ein Bild)
@@ -165,6 +165,7 @@ const SPIEL_INFO = {
   welche: 'Ziffern wiedererkennen: „Wo ist die Drei?“ (nach dem Nachspuren, eher ab 4)',
   faecher: 'Zur Ziffer selbst die Menge legen, die Null bleibt leer (nach „Welche Zahl?“, eher ab 4)',
   jedem: 'Jedem Tier einen Teller hinschieben: eins zu eins, „gleich viele“ (ab 3)',
+  huepfen: 'Abzählvers: den Frosch von Stein zu Stein schieben, die Zahlen der Reihe nach (bis 5, auf Wunsch bis 10)',
 };
 // Fertige Spiele: id -> Startfunktion. Was hier fehlt, erscheint weder auf der Startseite noch im Regal.
 const SPIELE = {};
@@ -183,7 +184,7 @@ function einstellungenLaden() {
 
 // Schalter einzelner Spiele (je Kind, ohne Kinder app-weit): Name = Feld beim Kind, Schlüssel zn:<Name>, data-option
 const SPIEL_OPTIONEN = ['weniger', 'korbBis5', 'korbTippen', 'trommelBis5', 'holBis5',
-  'holLoeffel', 'holBecher', 'holBaustein', 'holKuscheltier', 'ziffern456', 'ziffern789', 'ziffern0'];
+  'holLoeffel', 'holBecher', 'holBaustein', 'holKuscheltier', 'ziffern456', 'ziffern789', 'ziffern0', 'huepfenBis10'];
 // Standard „an“ (sonst aus): die Dinge bei „Hol mir …“
 const SPIEL_STANDARD = { holLoeffel: true, holBecher: true, holBaustein: true, holKuscheltier: true };
 const optionStandard = (o) => !!SPIEL_STANDARD[o];
@@ -406,6 +407,7 @@ window.addEventListener('popstate', () => {
   welcheStoppen();
   faecherStoppen();
   jedemStoppen();
+  huepfenStoppen();
   studioAbbrechen();
   studioMikrofonZu();
   const ziel = (history.state && history.state.screen) || 'home';
@@ -3611,6 +3613,242 @@ $('#btn-jedem-laut').addEventListener('click', () => {
   jeAnsage(je.nummer, `jedem-start-${jeRunde().ding}`).then((ok) => { if (ok) { je.gesperrt = false; jeHilfeAbwarten(je.nummer); } });
 });
 window.addEventListener('resize', () => { if ($('#jedem').classList.contains('active') && !je.auftrag) jeAnordnen(); });
+
+// ---------- Zahlen-Hüpfen (ab 3): die Zahlwortreihe als Abzählvers ----------
+// Ein Frosch hüpft über Steine im Teich. Erst macht die App es vor: der ganze Vers in einem Zug („Eins, zwei, drei,
+// vier, fünf. Der Frosch ist da!“), bei jeder Zahl ein Hüpfer. Dann schiebt das Kind den Frosch von Stein zu Stein,
+// jeder Stein hat sein Zahlwort; am Ende die letzte Zahl betont: „Fünf Steine!“ Daneben losgelassen hüpft der Frosch
+// auf seinen Stein zurück (ins Wasser fällt er nicht – kein „falsch“). Mit Eltern-Schalter bis zehn.
+// Zum Schluss in echt: „Jetzt hüpfst du! Fünfmal – wir zählen zusammen.“ Nach 👍 zählt die App langsam mit.
+// Hinweis für Eltern: Aufsagen ist noch kein Mengenverständnis – dafür sind die anderen Spiele da.
+const HUEPFEN_ZEIT = { hilfe: 10000, vormachenPause: 700, daumen: 5000, auftragNochmal: 16000 };
+const hp = { n: 5, stein: 0, steine: [], ziehen: null, gesperrt: true, timer: null, nummer: 0, fertig: false, inEcht: false,
+  auftrag: false, mass: null, sprech: { kette: Promise.resolve(), offen: 0 } };
+const hpBausteine = spielBausteine('huepfen', hp);
+const { aktuell: hpAktuell, ansage: hpAnsage, zaehlen: hpZaehlen } = hpBausteine;
+
+function huepfenStoppen() {
+  hpBausteine.stoppen();
+  hp.ziehen = null;
+}
+
+// Steine auf einem Schlangenweg: hochkant von oben nach unten im Zickzack, quer von links nach rechts in Wellen
+function hpMasse() {
+  const feld = $('#huepfen-feld');
+  const W = feld.clientWidth, H = feld.clientHeight;
+  const quer = W > H;
+  const n = hp.n;
+  let S, stellen;
+  if (quer) {
+    const reihen = n > 5 ? 2 : 1;
+    const proReihe = Math.ceil(n / reihen);
+    S = Math.min(84, (W - 120) / (proReihe * 1.5), (H - 40) / (reihen * 2.2));
+    const schritt = (W - 120 - S) / Math.max(1, proReihe - 1);
+    stellen = Array.from({ length: n }, (_, i) => {
+      const r = Math.floor(i / proReihe), k = i % proReihe;
+      const spalte = r % 2 ? proReihe - 1 - k : k;   // zweite Reihe läuft zurück (Schlangenweg)
+      const y = (H / (reihen + 1)) * (r + 1) + (k % 2 ? -1 : 1) * S * 0.28;
+      return [60 + S / 2 + spalte * schritt, y];
+    });
+  } else {
+    S = Math.min(84, W * 0.22, (H - 140) / (n * 0.95));
+    const schritt = (H - 120 - S) / Math.max(1, n - 1);
+    stellen = Array.from({ length: n }, (_, i) => [W / 2 + (i % 2 ? 1 : -1) * W * 0.18, 24 + S / 2 + i * schritt]);
+  }
+  return { W, H, S, stellen };
+}
+
+function hpFroschSetzen(x, y) {
+  const { S } = hp.mass;
+  hp.frosch.style.transform = `translate(${x - S / 2}px, ${y - S * 0.62}px)`;
+  hp.frosch.dataset.x = x;
+  hp.frosch.dataset.y = y;
+}
+
+function hpAnordnen() {
+  const feld = $('#huepfen-feld');
+  if (!feld.clientWidth || !hp.steine.length) return;
+  hp.mass = hpMasse();
+  const { S, stellen } = hp.mass;
+  hp.steine.forEach((el, i) => Object.assign(el.style, { left: `${stellen[i][0] - S / 2}px`, top: `${stellen[i][1] - S * 0.32}px`, width: `${S}px`, height: `${S * 0.64}px` }));
+  Object.assign(hp.frosch.style, { width: `${S}px`, height: `${S}px`, fontSize: `${S * 0.8}px` });
+  hpFroschAufStein();
+}
+
+// Frosch auf seinen Stein (hp.stein = wie viele schon gehüpft; 0 = am Ufer vor dem ersten Stein)
+function hpFroschAufStein() {
+  const { S, stellen } = hp.mass;
+  if (hp.stein === 0) {
+    const [x, y] = stellen[0];
+    const quer = hp.mass.W > hp.mass.H;
+    hpFroschSetzen(quer ? Math.max(S / 2, x - S * 1.3) : x, quer ? y : Math.max(S / 2, y - S * 0.9));
+    return;
+  }
+  hpFroschSetzen(...stellen[hp.stein - 1]);
+}
+
+function hpFeldAufbauen() {
+  const feld = $('#huepfen-feld');
+  feld.closest('.screen').classList.remove('ruhig');
+  feld.innerHTML = '<div class="teich"></div>';
+  hp.steine = Array.from({ length: hp.n }, () => {
+    const el = document.createElement('div');
+    el.className = 'stein';
+    feld.appendChild(el);
+    return el;
+  });
+  hp.frosch = document.createElement('div');
+  hp.frosch.className = 'frosch';
+  hp.frosch.textContent = '🐸';
+  hp.frosch.style.transition = 'none';
+  feld.appendChild(hp.frosch);
+  hp.stein = 0;
+  hpAnordnen();
+  void feld.offsetWidth;
+  hp.frosch.style.transition = '';
+}
+
+// 1. Vormachen: der ganze Vers als eine Aufnahme, der Frosch hüpft im Takt (gleichmäßig über die Aufnahme verteilt)
+async function huepfenVormachen() {
+  huepfenStoppen();
+  const nr = hp.nummer;
+  hpFeldAufbauen();
+  hp.gesperrt = true;
+  await warten(500);
+  if (!hpAktuell(nr)) return;
+  const ok = await hpZaehlen(nr, `huepfen-vers-${hp.n}`, hp.steine, (i) => { hp.stein = i + 1; hpFroschAufStein(); animieren(hp.frosch, 'huepft'); });
+  if (!ok) return;
+  await warten(HUEPFEN_ZEIT.vormachenPause);
+  if (!hpAktuell(nr)) return;
+  // 2. Jetzt das Kind: zurück ans Ufer, Steine wieder still
+  hp.steine.forEach((s) => s.classList.remove('leuchtet'));
+  hp.stein = 0;
+  hpFroschAufStein();
+  if (!(await hpAnsage(nr, 'huepfen-du'))) return;
+  hp.gesperrt = false;
+  hpHilfeAbwarten(nr);
+}
+
+function hpHilfeAbwarten(nr) {
+  clearTimeout(hp.timer);
+  hp.timer = setTimeout(async () => {
+    if (!hpAktuell(nr) || hp.gesperrt || hp.ziehen || hp.sprech.offen) { hpHilfeAbwarten(nr); return; }
+    hp.gesperrt = true;
+    animieren(hp.frosch, 'huepft');
+    animieren(hp.steine[hp.stein], 'pulsiert');
+    if (!(await hpAnsage(nr, 'huepfen-du'))) return;
+    hp.gesperrt = false;
+    hpHilfeAbwarten(nr);
+  }, HUEPFEN_ZEIT.hilfe);
+}
+
+$('#huepfen-feld').addEventListener('pointerdown', (e) => {
+  if (!e.target.closest('.frosch')) return;
+  e.preventDefault();
+  if (hp.ziehen || hp.gesperrt || hp.auftrag || hp.stein >= hp.n) return;
+  audio();
+  hp.ziehen = { id: e.pointerId, sx: e.clientX, sy: e.clientY, bewegt: false, feld: $('#huepfen-feld').getBoundingClientRect(), nr: hp.nummer };
+  hp.frosch.classList.add('greift');
+  try { hp.frosch.setPointerCapture(e.pointerId); } catch { /* synthetische Ereignisse (Tests) */ }
+});
+
+document.addEventListener('pointermove', (e) => {
+  const z = hp.ziehen;
+  if (!z || e.pointerId !== z.id) return;
+  if (Math.hypot(e.clientX - z.sx, e.clientY - z.sy) > 8) z.bewegt = true;
+  if (z.bewegt) hpFroschSetzen(e.clientX - z.feld.left, e.clientY - z.feld.top - 30);
+});
+
+function hpLoslassen(e) {
+  const z = hp.ziehen;
+  if (!z || e.pointerId !== z.id) return;
+  hp.ziehen = null;
+  hp.frosch.classList.remove('greift');
+  if (z.nr !== hp.nummer || !hpAktuell(z.nr)) return;
+  const [nx, ny] = hp.mass.stellen[hp.stein];
+  const x = Number(hp.frosch.dataset.x), y = Number(hp.frosch.dataset.y);
+  // Nur der nächste Stein zählt (die Reihe bleibt fest); sonst hüpft der Frosch auf seinen Stein zurück
+  if (z.bewegt && Math.hypot(x - nx, y - ny) <= hp.mass.S * 1.1) { hpAngekommen(); return; }
+  hpFroschAufStein();
+  animieren(hp.frosch, 'huepft');
+}
+document.addEventListener('pointerup', hpLoslassen);
+document.addEventListener('pointercancel', hpLoslassen);
+
+async function hpAngekommen() {
+  const nr = hp.nummer;
+  hp.stein++;
+  const k = hp.stein;
+  hpFroschAufStein();
+  hp.steine[k - 1].classList.add('leuchtet');
+  const fertig = k >= hp.n;
+  if (fertig) { hp.gesperrt = true; clearTimeout(hp.timer); } else hpHilfeAbwarten(nr);
+  const sp = hp.sprech;
+  sp.offen++;
+  sp.kette = sp.kette.then(() => hpAnsage(nr, `korb-zahl-${k}`)).finally(() => { sp.offen--; });
+  if (!(await sp.kette) || !fertig) return;
+  glockenspiel();
+  animieren(hp.frosch, 'huepft');
+  await warten(300);
+  if (!(await hpAnsage(nr, `huepfen-ende-${hp.n}`))) return;
+  await warten(600);
+  if (hpAktuell(nr)) huepfenAuftrag();
+}
+
+// ----- Echte Welt: „Jetzt hüpfst du! Fünfmal – wir zählen zusammen.“ – nach 👍 zählt die App langsam mit -----
+
+function huepfenAuftrag() {
+  huepfenStoppen();
+  const nr = hp.nummer;
+  hp.auftrag = true;
+  hp.fertig = false;
+  $('#btn-huepfen-daumen').hidden = true;
+  const punkte = Array.from({ length: hp.n }, (_, i) => `<circle class="karte-punkt" cx="${10 + (i % 5) * 20}" cy="${hp.n > 5 ? (i < 5 ? 30 : 70) : 50}" r="7"/>`).join('');
+  inEcht({ z: hp, nr, aktuell: hpAktuell, ansage: hpAnsage, buehne: $('#huepfen-feld'), knopf: $('#btn-huepfen-daumen'),
+    karteHtml: `<svg viewBox="0 0 100 100" aria-hidden="true">${punkte}</svg><span class="karte-bild">🐸</span>`,
+    sagen: (nr2) => hpAnsage(nr2, `huepfen-welt-${hp.n}`), zeit: HUEPFEN_ZEIT });
+}
+
+async function huepfenAuftragErledigt(nr) {
+  const karte = inEchtBestaetigt(hp, $('#btn-huepfen-daumen'));
+  if (!karte) return;
+  if (!(await hpZaehlen(nr, `zaehlen-${hp.n}`, [...karte.querySelectorAll('.karte-punkt')]))) return;
+  glockenspiel();
+  await warten(400);
+  if (!(await hpAnsage(nr, 'huepfen-fertig'))) return;
+  spielEnde('huepfen', huepfenNeu);
+}
+
+$('#btn-huepfen-daumen').addEventListener('click', () => { audio(); if (hp.inEcht) huepfenAuftragErledigt(hp.nummer); });
+
+function huepfenNeu() {
+  huepfenStoppen();
+  Object.assign(hp, { n: zustand.huepfenBis10 ? 10 : 5, stein: 0, fertig: false, inEcht: false, auftrag: false,
+    sprech: { kette: Promise.resolve(), offen: 0 } });
+  $('#btn-huepfen-daumen').hidden = true;
+  huepfenVormachen();
+}
+
+function huepfenStarten() {
+  spielEndeWeg('huepfen');
+  zeigen('huepfen');
+  huepfenNeu();
+}
+SPIELE.huepfen = huepfenStarten;
+$('#home .spiel-btn[data-spiel="huepfen"]').innerHTML = '<span class="kachel-huepfen">🐸<span class="k-stein"></span><span class="k-stein"></span></span>';
+
+$('#btn-huepfen-home').addEventListener('click', () => { huepfenStoppen(); wiedergabeStoppen(); zurStartseite(); });
+// 🔊: nochmal vormachen (solange das Kind noch nicht losgehüpft ist), sonst „Jetzt du!“
+$('#btn-huepfen-laut').addEventListener('click', () => {
+  const ende = $('#huepfen .spiel-ende');
+  if ((ende && !ende.hidden) || hp.fertig || hp.gesperrt || hp.ziehen || hp.sprech.offen) return;
+  audio();
+  if (hp.inEcht) { inEchtNochmal(hp); return; }
+  if (hp.stein === 0) { huepfenVormachen(); return; }
+  hp.gesperrt = true;
+  hpAnsage(hp.nummer, 'huepfen-du').then((ok) => { if (ok) { hp.gesperrt = false; hpHilfeAbwarten(hp.nummer); } });
+});
+window.addEventListener('resize', () => { if ($('#huepfen').classList.contains('active') && !hp.auftrag && hp.steine.length) hpAnordnen(); });
 
 // ---------- Elternbereich (2 Sekunden gedrückt halten) ----------
 
