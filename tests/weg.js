@@ -49,6 +49,11 @@
   const feldR = $('#weg-feld').getBoundingClientRect();
   pruefe(felder[0].left >= feldR.left && felder[9].right <= feldR.right, 'Weg ragt heraus');
   pruefe(gesagt.join() === 'weg-start,weg-du' && wg.feld === 0, `Start: ${gesagt}`);
+  // Startplatz vor Feld 1: der Käfer steht dort, nicht über Feld 1
+  const startR = $('#weg-feld .weg-start').getBoundingClientRect(), kaeferM = mitte(wg.kaefer);
+  pruefe(startR.right <= felder[0].left + 1 && kaeferM.x >= startR.left && kaeferM.x <= startR.right && kaeferM.x < felder[0].left,
+    'Käfer steht nicht am Startplatz vor Feld 1');
+  pruefe(startR.left >= feldR.left - 1, 'Startplatz ragt heraus');
   pruefe(!/[A-Za-zÄÖÜäöüß]/.test($('#weg').innerText), `Text auf dem Kinder-Bildschirm: ${$('#weg').innerText}`);
 
   // 3. Ohne Würfeln lässt sich nicht ziehen; würfeln (1 oder 2), dann Feld für Feld

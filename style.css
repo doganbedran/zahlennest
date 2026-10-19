@@ -636,3 +636,10 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 .treppe-kaefer { position: absolute; left: 0; top: 0; display: flex; align-items: center; justify-content: center; line-height: 1;
   z-index: 4; transition: transform 0.35s ease-out; }
 @media (prefers-reduced-motion: reduce) { .ei, .stange, .treppe-kaefer { transition: none; } }
+/* Ufer: Startplatz des Frosches – Grasstreifen am Teichrand (dunkler als Wasser und Steine, sieht nicht aus wie ein Stein) */
+.ufer { position: absolute; border-radius: 28px; background: #5f9a45;
+  background-image: repeating-linear-gradient(75deg, rgba(255, 255, 255, 0.08) 0 6px, transparent 6px 14px); }
+/* Startplatz beim Zahlenweg: ein Blatt ohne Zahl und ohne Feldrahmen */
+.weg-start { position: absolute; display: flex; align-items: center; justify-content: center; line-height: 1;
+  border-radius: 50%; background: #e3efd6; }
+.weg-start.pulsiert { animation: warten-puls 1.6s ease-in-out 2; }

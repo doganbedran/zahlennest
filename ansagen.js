@@ -270,7 +270,9 @@ const ANSAGEN = {
   // Zahlen-Hüpfen: der Vers als ganze Aufnahme (je Zahl ein Hüpfer, danach ein Satz), Zahlwort je Stein
   'huepfen-vers-5': ['Eins, zwei, drei, vier, fünf. Der Frosch ist da!', 'Zahlen-Hüpfen'],
   'huepfen-vers-10': ['Eins, zwei, drei, vier, fünf, sechs, sieben, acht, neun, zehn. Jetzt bleibt der Frosch stehn!', 'Zahlen-Hüpfen'],
-  'huepfen-du': ['Jetzt du! Schieb den Frosch von Stein zu Stein.', 'Zahlen-Hüpfen'],
+  'huepfen-du': ['Jetzt du! Der Frosch sitzt am Ufer. Schieb ihn auf den Stein!', 'Zahlen-Hüpfen'],
+  'huepfen-weiter': ['Schieb den Frosch auf den nächsten Stein!', 'Zahlen-Hüpfen'],
+  'huepfen-naechster': ['Erst auf den nächsten Stein!', 'Zahlen-Hüpfen'],
   'korb-zahl-10': ['zehn', 'Zahlen-Hüpfen'],
   'zaehlen-10': ['Eins, zwei, drei, vier, fünf, sechs, sieben, acht, neun, zehn. Zehn!', 'Zahlen-Hüpfen'],
   'huepfen-ende-5': ['Fünf Steine! Der Frosch ist da!', 'Zahlen-Hüpfen'],
@@ -279,7 +281,7 @@ const ANSAGEN = {
   'huepfen-welt-10': ['Jetzt hüpfst du! Zehnmal – wir zählen zusammen.', 'Zahlen-Hüpfen'],
   'huepfen-fertig': ['Du bist gehüpft und hast mitgezählt!', 'Zahlen-Hüpfen'],
   // Zahlenweg (gerades Brett 1–10, nach Ramani & Siegler): Zahl je Feld mit korb-zahl-n
-  'weg-start': ['Wir bringen den Käfer zusammen bis zur Zehn. Du würfelst zuerst!', 'Zahlenweg'],
+  'weg-start': ['Der Käfer wartet hier am Start. Wir bringen ihn zusammen bis zur Zehn. Du würfelst zuerst!', 'Zahlenweg'],
   'weg-du': ['Du bist dran! Tipp auf den Würfel.', 'Zahlenweg'],
   'weg-wurf-1': ['Eins!', 'Zahlenweg'],
   'weg-wurf-2': ['Zwei!', 'Zahlenweg'],

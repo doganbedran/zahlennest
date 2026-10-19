@@ -23,6 +23,7 @@
   const feldPunkt = ([x, y]) => { const r = $('#huepfen-feld').getBoundingClientRect(); return { x: r.left + x, y: r.top + y }; };
   // Frosch auf einen Punkt schieben (der Frosch sitzt 30 px über dem Finger)
   const schieben = async (ziel) => {
+    await warte(350);   // der Frosch gleitet noch an seinen Platz (gegriffen wird, wo er zu sehen ist)
     const von = mitte(hp.frosch);
     ev(hp.frosch, 'pointerdown', von);
     for (let i = 1; i <= 6; i++) ev(document, 'pointermove', { x: von.x + ((ziel.x - von.x) * i) / 6, y: von.y + ((ziel.y + 30 - von.y) * i) / 6 });
@@ -47,12 +48,27 @@
   await bis(() => !hp.gesperrt);
   pruefe(hp.steine.length === 5 && gesagt.join() === 'huepfen-vers-5,huepfen-du' && hp.stein === 0, `Start: ${gesagt}`);
   pruefe(!/[A-Za-zÄÖÜäöüß]/.test($('#huepfen').innerText), `Text auf dem Kinder-Bildschirm: ${$('#huepfen').innerText}`);
+  // Start am Ufer: der Frosch steht nicht auf Stein 1, der erste Hüpfer ist so weit wie die anderen
+  await warte(400);   // zurück ans Ufer gleiten lassen
+  const froschR = hp.frosch.getBoundingClientRect(), stein1 = hp.steine[0].getBoundingClientRect();
+  const ueber = froschR.left < stein1.right && stein1.left < froschR.right && froschR.top < stein1.bottom && stein1.top < froschR.bottom;
+  const [s0, s1, s2] = [hp.mass.start, hp.mass.stellen[0], hp.mass.stellen[1]];
+  const weit = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  pruefe(!ueber && weit(s0, s1) >= 0.9 * weit(s1, s2), `Start: Frosch auf Stein 1 oder erster Hüpfer zu kurz (${Math.round(weit(s0, s1))} / ${Math.round(weit(s1, s2))})`);
+  const uferR = $('#huepfen-feld .ufer').getBoundingClientRect(), fm = mitte(hp.frosch);
+  pruefe(fm.x >= uferR.left && fm.x <= uferR.right && fm.y >= uferR.top && fm.y <= uferR.bottom, 'Frosch steht nicht auf dem Ufer');
+  // Ein kleines Wackeln am Ufer zählt nicht
+  await schieben(feldPunkt([s0[0] + (s1[0] - s0[0]) * 0.3, s0[1] + (s1[1] - s0[1]) * 0.3]));
+  pruefe(hp.stein === 0, 'Wackeln am Ufer zählt als Hüpfer');
 
   // 3. Übersprungen (gleich auf den dritten Stein) oder ins Wasser: zurück, nichts gezählt
   await schieben(feldPunkt(hp.mass.stellen[2]));
   pruefe(hp.stein === 0 && !gesagt.includes('korb-zahl-1'), 'Überspringen zählt');
-  await schieben(feldPunkt([hp.mass.W - 10, hp.mass.H - 10]));
+  await schieben(feldPunkt([hp.mass.W / 2, 4]));
   pruefe(hp.stein === 0, 'Daneben zählt');
+  await bis(() => gesagt.includes('huepfen-naechster'));
+  pruefe(gesagt.includes('huepfen-naechster'), 'Nach zweimal daneben kein Hinweis');
+  await bis(() => !hp.gesperrt);
 
   // 4. Stein für Stein: eins … fünf, dann „Fünf Steine!“ und Auftrag
   for (let i = 0; i < 5; i++) await schieben(feldPunkt(hp.mass.stellen[i]));

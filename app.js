@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 25;
+const APP_VERSION = 26;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -3654,7 +3654,7 @@ window.addEventListener('resize', () => { if ($('#jedem').classList.contains('ac
 // Zum Schluss in echt: „Jetzt hüpfst du! Fünfmal – wir zählen zusammen.“ Nach 👍 zählt die App langsam mit.
 // Hinweis für Eltern: Aufsagen ist noch kein Mengenverständnis – dafür sind die anderen Spiele da.
 const HUEPFEN_ZEIT = { hilfe: 10000, vormachenPause: 700, daumen: 5000, auftragNochmal: 16000 };
-const hp = { n: 5, stein: 0, steine: [], ziehen: null, gesperrt: true, timer: null, nummer: 0, fertig: false, inEcht: false,
+const hp = { n: 5, stein: 0, fehlgriffe: 0, steine: [], ziehen: null, gesperrt: true, timer: null, nummer: 0, fertig: false, inEcht: false,
   auftrag: false, mass: null, sprech: { kette: Promise.resolve(), offen: 0 } };
 const hpBausteine = spielBausteine('huepfen', hp);
 const { aktuell: hpAktuell, ansage: hpAnsage, zaehlen: hpZaehlen } = hpBausteine;
@@ -3664,35 +3664,48 @@ function huepfenStoppen() {
   hp.ziehen = null;
 }
 
-// Steine auf einem Schlangenweg: hochkant von oben nach unten im Zickzack, quer von links nach rechts in Wellen
+// Start am Ufer (grüner Grasstreifen, sieht nicht aus wie ein Stein), dann die Steine auf einem Schlangenweg.
+// Vom Ufer zum ersten Stein ist es genau so weit wie von Stein zu Stein: „eins“ ist ein ganzer, sichtbarer Hüpfer
+// (sonst sieht es aus, als säße der Frosch schon auf Stein 1 – und das Kind zählt Steine statt Hüpfer).
+// Hochkant: Ufer unten, Steine im Zickzack nach oben (die Hand verdeckt beim Schieben nicht den nächsten Stein);
+// quer: Ufer links, Steine nach rechts (bei zehn in zwei Reihen hin und zurück).
 function hpMasse() {
   const feld = $('#huepfen-feld');
   const W = feld.clientWidth, H = feld.clientHeight;
   const quer = W > H;
   const n = hp.n;
-  let S, stellen;
+  const rand = 12;   // Teich-Rand (wie .teich)
+  let S, stellen, start, ufer;
   if (quer) {
     const reihen = n > 5 ? 2 : 1;
     const proReihe = Math.ceil(n / reihen);
-    S = Math.min(84, (W - 120) / (proReihe * 1.5), (H - 40) / (reihen * 2.2));
-    const schritt = (W - 120 - S) / Math.max(1, proReihe - 1);
+    S = Math.min(84, (W - 80) / ((proReihe + 1) * 1.5), (H - 40) / (reihen * 2.2));
+    const U = S * 1.6;
+    ufer = { x: rand, y: 8, w: U, h: H - 8 - rand };
+    const zeile = (r) => (H / (reihen + 1)) * (r + 1);
+    start = [rand + U / 2, zeile(0)];
+    const schritt = (W - 40 - S / 2 - start[0]) / proReihe;
     stellen = Array.from({ length: n }, (_, i) => {
       const r = Math.floor(i / proReihe), k = i % proReihe;
       const spalte = r % 2 ? proReihe - 1 - k : k;   // zweite Reihe läuft zurück (Schlangenweg)
-      const y = (H / (reihen + 1)) * (r + 1) + (k % 2 ? -1 : 1) * S * 0.28;
-      return [60 + S / 2 + spalte * schritt, y];
+      return [start[0] + (spalte + 1) * schritt, zeile(r) + (k % 2 ? -1 : 1) * S * 0.28];
     });
   } else {
-    S = Math.min(84, W * 0.22, (H - 140) / (n * 0.95));
-    const schritt = (H - 120 - S) / Math.max(1, n - 1);
-    stellen = Array.from({ length: n }, (_, i) => [W / 2 + (i % 2 ? 1 : -1) * W * 0.18, 24 + S / 2 + i * schritt]);
+    S = Math.min(84, W * 0.22, (H - 60) / (n * 0.95 + 2.2));
+    const U = S * 1.5;
+    ufer = { x: rand, y: H - rand - U, w: W - 2 * rand, h: U };
+    const x = (k) => W / 2 + (k % 2 ? -1 : 1) * W * 0.18;   // Platz 0 (Ufer) rechts, Stein 1 links, …
+    start = [x(0), H - rand - U / 2];
+    const schritt = (start[1] - (24 + S / 2)) / n;
+    stellen = Array.from({ length: n }, (_, i) => [x(i + 1), start[1] - (i + 1) * schritt]);
   }
-  return { W, H, S, stellen };
+  return { W, H, S, stellen, start, ufer, greif: S * 1.3 };
 }
 
+// Greifbereich des Frosches größer als das Bild (kleine Finger treffen leichter)
 function hpFroschSetzen(x, y) {
-  const { S } = hp.mass;
-  hp.frosch.style.transform = `translate(${x - S / 2}px, ${y - S * 0.62}px)`;
+  const { greif } = hp.mass;
+  hp.frosch.style.transform = `translate(${x - greif / 2}px, ${y - greif * 0.62}px)`;
   hp.frosch.dataset.x = x;
   hp.frosch.dataset.y = y;
 }
@@ -3701,28 +3714,22 @@ function hpAnordnen() {
   const feld = $('#huepfen-feld');
   if (!feld.clientWidth || !hp.steine.length) return;
   hp.mass = hpMasse();
-  const { S, stellen } = hp.mass;
+  const { S, stellen, ufer, greif } = hp.mass;
+  Object.assign(feld.querySelector('.ufer').style, { left: `${ufer.x}px`, top: `${ufer.y}px`, width: `${ufer.w}px`, height: `${ufer.h}px` });
   hp.steine.forEach((el, i) => Object.assign(el.style, { left: `${stellen[i][0] - S / 2}px`, top: `${stellen[i][1] - S * 0.32}px`, width: `${S}px`, height: `${S * 0.64}px` }));
-  Object.assign(hp.frosch.style, { width: `${S}px`, height: `${S}px`, fontSize: `${S * 0.8}px` });
+  Object.assign(hp.frosch.style, { width: `${greif}px`, height: `${greif}px`, fontSize: `${S * 0.8}px` });
   hpFroschAufStein();
 }
 
-// Frosch auf seinen Stein (hp.stein = wie viele schon gehüpft; 0 = am Ufer vor dem ersten Stein)
+// Frosch auf seinen Platz (hp.stein = wie viele schon gehüpft; 0 = am Ufer)
 function hpFroschAufStein() {
-  const { S, stellen } = hp.mass;
-  if (hp.stein === 0) {
-    const [x, y] = stellen[0];
-    const quer = hp.mass.W > hp.mass.H;
-    hpFroschSetzen(quer ? Math.max(S / 2, x - S * 1.3) : x, quer ? y : Math.max(S / 2, y - S * 0.9));
-    return;
-  }
-  hpFroschSetzen(...stellen[hp.stein - 1]);
+  hpFroschSetzen(...(hp.stein === 0 ? hp.mass.start : hp.mass.stellen[hp.stein - 1]));
 }
 
 function hpFeldAufbauen() {
   const feld = $('#huepfen-feld');
   feld.closest('.screen').classList.remove('ruhig');
-  feld.innerHTML = '<div class="teich"></div>';
+  feld.innerHTML = '<div class="teich"></div><div class="ufer"></div>';
   hp.steine = Array.from({ length: hp.n }, () => {
     const el = document.createElement('div');
     el.className = 'stein';
@@ -3755,9 +3762,13 @@ async function huepfenVormachen() {
   // 2. Jetzt das Kind: zurück ans Ufer, Steine wieder still
   hp.steine.forEach((s) => s.classList.remove('leuchtet'));
   hp.stein = 0;
+  hp.fehlgriffe = 0;
   hpFroschAufStein();
   if (!(await hpAnsage(nr, 'huepfen-du'))) return;
   hp.gesperrt = false;
+  // Gleich zeigen, wohin es geht: der erste Stein pulsiert, der Frosch hüpft einmal („mich kannst du nehmen“)
+  animieren(hp.steine[0], 'pulsiert');
+  animieren(hp.frosch, 'huepft');
   hpHilfeAbwarten(nr);
 }
 
@@ -3768,7 +3779,7 @@ function hpHilfeAbwarten(nr) {
     hp.gesperrt = true;
     animieren(hp.frosch, 'huepft');
     animieren(hp.steine[hp.stein], 'pulsiert');
-    if (!(await hpAnsage(nr, 'huepfen-du'))) return;
+    if (!(await hpAnsage(nr, hp.stein ? 'huepfen-weiter' : 'huepfen-du'))) return;
     hp.gesperrt = false;
     hpHilfeAbwarten(nr);
   }, HUEPFEN_ZEIT.hilfe);
@@ -3798,11 +3809,21 @@ function hpLoslassen(e) {
   hp.frosch.classList.remove('greift');
   if (z.nr !== hp.nummer || !hpAktuell(z.nr)) return;
   const [nx, ny] = hp.mass.stellen[hp.stein];
+  const [hx, hy] = hp.stein === 0 ? hp.mass.start : hp.mass.stellen[hp.stein - 1];
   const x = Number(hp.frosch.dataset.x), y = Number(hp.frosch.dataset.y);
-  // Nur der nächste Stein zählt (die Reihe bleibt fest); sonst hüpft der Frosch auf seinen Stein zurück
-  if (z.bewegt && Math.hypot(x - nx, y - ny) <= hp.mass.S * 1.1) { hpAngekommen(); return; }
+  // Nur der nächste Stein zählt (die Reihe bleibt fest) – und nur, wenn der Frosch dort näher ist als an seinem Platz
+  // (ein kleines Wackeln ist kein Hüpfer); sonst hüpft er auf seinen Platz zurück
+  const amZiel = Math.hypot(x - nx, y - ny);
+  if (z.bewegt && amZiel <= hp.mass.S * 1.1 && amZiel < Math.hypot(x - hx, y - hy)) { hp.fehlgriffe = 0; hpAngekommen(); return; }
   hpFroschAufStein();
   animieren(hp.frosch, 'huepft');
+  if (!z.bewegt) return;
+  // Daneben: sofort zeigen, welcher Stein dran ist; beim zweiten Mal auch sagen (kein „falsch“)
+  animieren(hp.steine[hp.stein], 'pulsiert');
+  if (++hp.fehlgriffe === 2 && !hp.gesperrt && !hp.sprech.offen) {
+    hp.gesperrt = true;
+    hpAnsage(z.nr, 'huepfen-naechster').then((ok) => { if (ok) { hp.gesperrt = false; hpHilfeAbwarten(z.nr); } });
+  }
 }
 document.addEventListener('pointerup', hpLoslassen);
 document.addEventListener('pointercancel', hpLoslassen);
@@ -3901,14 +3922,16 @@ function wegStoppen() {
   wg.ziehen = null;
 }
 
-// Gerader Weg von links nach rechts (auch hochkant), Felder gleich groß; Würfel und Teddy darunter
+// Gerader Weg von links nach rechts (auch hochkant), Felder gleich groß; Würfel und Teddy darunter.
+// Davor ein eigener Startplatz ohne Zahl (ein Blatt): der Käfer steht dort, nicht schon auf Feld 1 – sonst zählt
+// man das Startfeld mit (bekannter Brettspiel-Fehler). 11 Plätze: Start + 10 Felder.
 function wgMasse() {
   const feld = $('#weg-feld');
   const W = feld.clientWidth, H = feld.clientHeight;
-  const F = Math.min(84, (W - 24) / WEG_FELDER - 4);
-  const x0 = (W - WEG_FELDER * (F + 4) + 4) / 2;
+  const F = Math.min(84, (W - 24) / (WEG_FELDER + 1) - 4);
+  const x0 = (W - (WEG_FELDER + 1) * (F + 4) + 4) / 2;
   const y = Math.min(H * 0.38, H / 2 - F);
-  return { W, H, F, x0, y, mitte: (i) => [x0 + i * (F + 4) + F / 2, y + F / 2] };
+  return { W, H, F, x0, y, start: [x0 + F / 2, y + F / 2], mitte: (i) => [x0 + (i + 1) * (F + 4) + F / 2, y + F / 2] };
 }
 
 function wgKaeferSetzen(x, y) {
@@ -3923,8 +3946,7 @@ function wgKaeferSetzen(x, y) {
 // Käfer auf sein Feld (0 = vor dem ersten Feld, am Start)
 function wgKaeferAufFeld() {
   const { F, mitte } = wg.mass;
-  if (wg.feld === 0) { const [x, y] = mitte(0); wgKaeferSetzen(Math.max(22, x - F - 6), y); return; }
-  wgKaeferSetzen(...mitte(wg.feld - 1));
+  wgKaeferSetzen(...(wg.feld === 0 ? wg.mass.start : mitte(wg.feld - 1)));
 }
 
 function wgAnordnen() {
@@ -3932,7 +3954,8 @@ function wgAnordnen() {
   if (!feld.clientWidth || !wg.kaefer) return;
   wg.mass = wgMasse();
   const { F, x0, y } = wg.mass;
-  feld.querySelectorAll('.weg-feld').forEach((el, i) => Object.assign(el.style, { left: `${x0 + i * (F + 4)}px`, top: `${y}px`, width: `${F}px`, height: `${F}px` }));
+  Object.assign(feld.querySelector('.weg-start').style, { left: `${x0}px`, top: `${y}px`, width: `${F}px`, height: `${F}px`, fontSize: `${F * 0.7}px` });
+  feld.querySelectorAll('.weg-feld').forEach((el, i) => Object.assign(el.style, { left: `${x0 + (i + 1) * (F + 4)}px`, top: `${y}px`, width: `${F}px`, height: `${F}px` }));
   const g = Math.max(40, Math.min(F * 0.8, 56));
   Object.assign(wg.kaefer.style, { width: `${g}px`, height: `${g}px`, fontSize: `${g * 0.8}px` });
   wgKaeferAufFeld();
@@ -3941,7 +3964,7 @@ function wgAnordnen() {
 function wgFeldAufbauen() {
   const feld = $('#weg-feld');
   feld.closest('.screen').classList.remove('ruhig');
-  feld.innerHTML = Array.from({ length: WEG_FELDER }, (_, i) => `<div class="weg-feld${i === WEG_FELDER - 1 ? ' ziel' : ''}">`
+  feld.innerHTML = '<div class="weg-start" aria-hidden="true">🍃</div>' + Array.from({ length: WEG_FELDER }, (_, i) => `<div class="weg-feld${i === WEG_FELDER - 1 ? ' ziel' : ''}">`
     + `${i === WEG_FELDER - 1 ? zifferSvg(1) + zifferSvg(0) : zifferSvg(i + 1)}</div>`).join('')
     + '<div class="weg-unten"><button class="weg-wuerfel" aria-label="Würfeln"></button><div class="weg-teddy" aria-hidden="true">🧸</div></div>';
   wg.kaefer = document.createElement('div');
@@ -4142,6 +4165,7 @@ async function wegNeu() {
   wgFeldAufbauen();
   const nr = wg.nummer;
   wg.gesperrt = true;
+  animieren($('#weg-feld .weg-start'), 'pulsiert');   // „Der Käfer wartet hier am Start“
   if (!(await wgAnsage(nr, 'weg-start'))) return;
   wegKindDran(nr);
 }
