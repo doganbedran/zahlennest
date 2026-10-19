@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 24;
+const APP_VERSION = 25;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -292,6 +292,29 @@ function sprechen(text) {
 // Abspielen von Audiodateien nacheinander; ein neuer Aufruf bricht den laufenden ab
 const wiedergabe = { audio: null, nummer: 0, beenden: null };
 
+// Ein einziges Tonelement für alles: Safari auf dem iPhone spielt Töne nur direkt nach einem Tipp – außer über ein
+// Element, das schon einmal bei einem Tipp gespielt hat. Darum wird es beim ersten Tipp mit einem stillen Ton
+// „entsperrt“; danach dürfen auch Ansagen nach Pausen, Zeitgebern und Schieben erklingen.
+const tonEl = new Audio();
+tonEl.preload = 'auto';
+let tonEntsperrt = false;
+const STILLE = (() => {
+  const v = new DataView(new ArrayBuffer(44 + 200));
+  const text = (o, t) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  text(0, 'RIFF'); v.setUint32(4, 36 + 200, true); text(8, 'WAVE'); text(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true);
+  v.setUint32(28, 16000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); text(36, 'data'); v.setUint32(40, 200, true);
+  return URL.createObjectURL(new Blob([v.buffer], { type: 'audio/wav' }));
+})();
+function tonEntsperren() {
+  if (tonEntsperrt || !tonEl.paused) return;   // spielt gerade etwas: nicht unterbrechen
+  tonEl.onended = tonEl.onerror = tonEl.onplaying = null;
+  tonEl.src = STILLE;
+  const p = tonEl.play();
+  if (p) p.then(() => { tonEntsperrt = true; }).catch(() => {});
+}
+['touchend', 'pointerup', 'click', 'keydown'].forEach((art) => document.addEventListener(art, tonEntsperren, { capture: true, passive: true }));
+
 // Anhalten meldet die laufende Aufnahme als beendet: wer auf sie wartet, läuft weiter und prüft dann selbst, ob er
 // noch dran ist (ein angehaltenes Audio meldet sonst nie „zu Ende“ – der Ablauf dahinter bliebe für immer stehen)
 function wiedergabeStoppen() {
@@ -303,7 +326,9 @@ function wiedergabeStoppen() {
 
 function abspielen(quelle) {
   return new Promise((resolve, reject) => {
-    const a = new Audio(quelle);
+    const a = tonEl;
+    a.onplaying = null;
+    a.src = quelle;
     wiedergabe.audio = a;
     wiedergabe.beenden = resolve;
     a.onended = resolve;
@@ -355,7 +380,8 @@ async function zaehlenMitLeuchten(name, elemente, beiJedem = null) {
   };
   try {
     await new Promise((resolve, reject) => {
-      const a = new Audio(ansageUrl(name));
+      const a = tonEl;
+      a.src = ansageUrl(name);
       wiedergabe.audio = a;
       wiedergabe.beenden = resolve;
       a.onended = resolve;

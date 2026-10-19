@@ -55,6 +55,7 @@ seite huepfen 45000
 seite weg 60000
 seite nester 45000
 seite treppe 45000
+seite ton 15000
 seite sicherheit 15000
 seite offline 20000
 echo "Testseiten erzeugt"

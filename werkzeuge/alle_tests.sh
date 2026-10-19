@@ -73,6 +73,7 @@ LAEUFE=(
   "treppe|tests/treppe.html|412,860|90"
   "treppe-klein|tests/treppe.html|360,640|90"
   "treppe-quer|tests/treppe.html|860,412|90"
+  "ton|tests/ton.html|412,860|60"
   "sicherheit|tests/sicherheit.html|412,860|60"
   "offline|tests/offline.html|412,860|60"
 )
