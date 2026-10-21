@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 29;
+const APP_VERSION = 30;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -588,6 +588,29 @@ function spielBausteine(id, z) {
 }
 
 // ---------- Auftrag in der echten Welt (alle Spiele) ----------
+// 👍 ist für Erwachsene: kurz gedrückt halten (DAUMEN_HALTEN ms, ein Ring füllt sich), ein kurzer Tipp löst nichts
+// aus – Kinder tippen das „Toll!“-Zeichen sonst selbst und überspringen den Auftrag in der echten Welt.
+// Programmatische Klicks (Tests) und Tastatur gehen weiter durch.
+const DAUMEN_HALTEN = 900;
+const daumenKlickErlaubt = (e, btn) => !e.isTrusted || e.detail === 0 || btn.dataset.gehalten === '1';
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest && e.target.closest('.daumen-btn');
+  if (!btn) return;
+  if (!daumenKlickErlaubt(e, btn)) { e.stopImmediatePropagation(); e.preventDefault(); }
+  delete btn.dataset.gehalten;
+}, true);
+document.querySelectorAll('.daumen-btn').forEach((btn) => {
+  let timer = null;
+  const ab = () => { clearTimeout(timer); timer = null; btn.classList.remove('haelt'); };
+  btn.addEventListener('pointerdown', () => {
+    ab();
+    btn.classList.add('haelt');
+    timer = setTimeout(() => { ab(); btn.dataset.gehalten = '1'; btn.click(); }, DAUMEN_HALTEN);
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((art) => btn.addEventListener(art, ab));
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());
+});
+
 // Ablauf (Team + User): 1. das Spiel macht es einmal vor; 2. „Jetzt in echt!“ – das Spielfeld leert sich, groß 👐,
 // darüber nur eine kleine, flache Erinnerungskarte (nichts sieht greifbar aus; Tippen darauf lenkt einmal sanft um:
 // „Mach es in echt, mit deinen Händen!“); 3. der Erwachsene tippt 👍 (klein, unten rechts), dann zeigt das Kind auf
@@ -1855,6 +1878,12 @@ function trommelGeschlagen(e) {
   const jetzt = performance.now();
   if (tr.phase === 'kind' || tr.phase === 'zusammen') {
     if (jetzt - tr.letzterSchlag < TROMMEL_ZEIT.zittern) return;
+    // Ein Schlag – ein Wort: solange das Zahlwort zum vorigen Schlag noch klingt, schwingt die Trommel nur leise nach
+    // (zählt nicht, ist kein Fehler). Schnelles Draufhauen wird so von selbst langsamer, ohne Zeitfenster.
+    if (tr.sprech.offen) {
+      if (jetzt - tr.leiseLetzter > TROMMEL_ZEIT.zittern) { tr.leiseLetzter = jetzt; bumm(0.08); trAnimation(trTrommel(), 'zuckt'); }
+      return;
+    }
     tr.letzterSchlag = jetzt;
     trSchlagZaehlen(tr.nummer, false);
     return;

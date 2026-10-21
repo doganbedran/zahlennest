@@ -273,6 +273,17 @@
   trRinge()[2].classList.add('pulsiert');
   trommelStoppen();
 
+  // Schnelles Draufhauen: solange das Zahlwort klingt, zählt kein weiterer Schlag (ein Schlag – ein Wort)
+  Object.assign(TROMMEL_ZEIT, zeitAlt);
+  await runde(3);
+  await schlag(30); await schlag(30); await schlag(30);
+  pruefe(tr.schlaege === 1, `Schnelle Schläge zählen alle: ${tr.schlaege}`);
+  await ruhig();
+  await warte(TROMMEL_ZEIT.zittern);   // (zwei Schläge kurz hintereinander zählen ohnehin als einer)
+  await schlag(30);
+  pruefe(tr.schlaege === 2, `Nach dem Wort zählt der nächste Schlag nicht: ${tr.schlaege}`);
+  trommelStoppen();
+
   const d = document.createElement('div');
   d.style.cssText = 'position:fixed;left:0;right:0;bottom:0;color:#fff;font:12px monospace;padding:6px;z-index:9;background:'
     + (fehler.length ? '#c62828' : '#1b7f3a');

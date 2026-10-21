@@ -650,3 +650,8 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 .weg-start { position: absolute; display: flex; align-items: center; justify-content: center; line-height: 1;
   border-radius: 50%; background: #e3efd6; }
 .weg-start.pulsiert { animation: warten-puls 1.6s ease-in-out 2; }
+
+/* 👍 gedrückt halten: ein Ring füllt sich in DAUMEN_HALTEN ms */
+.daumen-btn { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.daumen-btn.haelt { animation: daumen-fuellen 0.9s linear forwards; }
+@keyframes daumen-fuellen { from { box-shadow: 0 0 0 0 var(--akzent-hell); } to { box-shadow: 0 0 0 12px var(--akzent); } }
