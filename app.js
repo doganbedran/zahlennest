@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 30;
+const APP_VERSION = 31;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -477,17 +477,21 @@ function spielEnde(id, nochmal) {
   if (!ende) {
     ende = document.createElement('div');
     ende.className = 'spiel-ende';
-    ende.innerHTML = '<button class="ende-home" aria-label="Fertig">🏠</button><button class="ende-nochmal" aria-label="Nochmal">🔁</button>';
+    // „Nochmal“ zeigt das Bild des Spiels (wie seine Kachel) mit kleinem ↻ – 🔁 kennen Kinder meist nicht
+    const kachel = $(`#home .spiel-btn[data-spiel="${id === 'hol' ? 'holmir' : id}"]`);
+    ende.innerHTML = '<button class="ende-home" aria-label="Fertig">🏠</button>'
+      + `<button class="ende-nochmal" aria-label="Nochmal"><span class="ende-bild">${kachel ? kachel.innerHTML : '🔁'}</span></button>`;
     ende.querySelector('.ende-home').addEventListener('click', zurStartseite);
     ende.querySelector('.ende-nochmal').addEventListener('click', () => { audio(); spielEndeWeg(id); ende.nochmal(); });
     screen.appendChild(ende);
   }
   ende.nochmal = nochmal;
   ende.hidden = false;
+  screen.classList.add('am-ende');   // oben 🏠/🔊 ausblenden: sonst zwei Häuser auf dem Bild
 }
 
 function spielEndeWeg(id) {
-  $(`#${id}`).classList.remove('ruhig');
+  $(`#${id}`).classList.remove('ruhig', 'am-ende');
   const ende = $(`#${id}`).querySelector('.spiel-ende');
   if (ende) ende.hidden = true;
 }

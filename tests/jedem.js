@@ -84,8 +84,14 @@
   await bis(() => $('#jedem .spiel-ende') && !$('#jedem .spiel-ende').hidden);
   pruefe(zuletzt() === 'jedem-welt-fertig', `Schluss: ${zuletzt()}`);
 
+  // Spielende: nur ein Haus auf dem Bild (oben ausgeblendet), „Nochmal“ zeigt das Bild des Spiels
+  pruefe(getComputedStyle($('#btn-jedem-home')).visibility === 'hidden' && getComputedStyle($('#btn-jedem-laut')).visibility === 'hidden', 'Oben noch 🏠/🔊 am Spielende');
+  pruefe($('#jedem .ende-nochmal').innerHTML.includes('🐻') && !$('#jedem .ende-nochmal').textContent.includes('🔁'), 'Nochmal zeigt nicht das Spielbild');
+  const nR = $('#jedem .ende-nochmal').getBoundingClientRect(), hR = $('#jedem .ende-home').getBoundingClientRect();
+  pruefe(nR.width < hR.width, 'Nochmal nicht kleiner als 🏠');
   // Ansicht: vier Tiere, zwei mit Löffel
   $('#jedem .ende-nochmal').click();
+  pruefe(getComputedStyle($('#btn-jedem-home')).visibility === 'visible', 'Nach Nochmal oben kein 🏠');
   jedemStoppen();
   je.runde = 2;
   jeRundenZeichnen();
