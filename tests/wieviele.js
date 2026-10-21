@@ -13,6 +13,11 @@
   const karten = () => [...document.querySelectorAll('#wieviele-karten .mengen-karte')];
   const karte = (n) => karten().find((k) => Number(k.dataset.menge) === n);
   await startFertig;
+  // Andere Anordnungen ab Stufe 2 nur bei 2 und 3 – ein einzelner Punkt steht immer in der Mitte
+  for (let k = 0; k < 20; k++) {
+    const p = new DOMParser().parseFromString(gemischtSvg(1), 'image/svg+xml').querySelector('circle');
+    pruefe(p.getAttribute('cx') === '50' && p.getAttribute('cy') === '50', 'Einzelner Punkt nicht in der Mitte');
+  }
 
   // Echte Zählfolge mit Leuchten einmal prüfen (Datei vorhanden → alle leuchten am Ende)
   const echtesZaehlen = zaehlenMitLeuchten;

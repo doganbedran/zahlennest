@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 28;
+const APP_VERSION = 29;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -667,7 +667,7 @@ const WUERFEL = { 1: [[50, 50]], 2: [[24, 24], [76, 76]], 3: [[24, 24], [50, 50]
 // Andere Anordnungen (ab Stufe 2): sonst lernt das Kind womöglich das Bild „Drei“ statt der Anzahl drei.
 // Punkte bleiben gleich groß und im gleichen Abstand.
 const ANORDNUNGEN = {
-  1: [[[50, 50]], [[30, 70]], [[70, 32]]],
+  1: [[[50, 50]]],   // ein einzelner Punkt immer in der Mitte (daneben sieht er verrutscht aus)
   2: [[[24, 24], [76, 76]], [[26, 50], [74, 50]], [[50, 24], [50, 76]], [[76, 24], [24, 76]]],
   3: [[[24, 24], [50, 50], [76, 76]], [[20, 50], [50, 50], [80, 50]], [[50, 24], [24, 72], [76, 72]], [[26, 28], [74, 28], [50, 74]]],
 };
