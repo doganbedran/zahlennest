@@ -37,15 +37,41 @@ def synth(stimme, text, tempo=1.0):
     return trimmen(np.concatenate(teile)) if teile else np.zeros(0, dtype=np.float32)
 
 
+# Piper („Thorsten“) spricht manche Wörter allein schlecht, im Satz aber gut (Rückmeldung des Users: „fünf“).
+# Dann: „Das sind fünf.“ sprechen und das Wort an der leisesten Stelle nach „Das sind“ herausschneiden.
+ALLEIN_SCHLECHT = {'fünf'}
+TRAEGER = 'Das sind'
+
+
+def aus_traeger(stimme, wort, rate, tempo, zeichen='.'):
+    cfg = SynthesisConfig(length_scale=tempo)
+    roh = lambda t: np.concatenate([c.audio_float_array for c in stimme.synthesize(t, syn_config=cfg)])
+    voll = trimmen(roh(f'{TRAEGER} {wort.lower()}{zeichen}'))
+    vor = len(trimmen(roh(TRAEGER)))
+    fenster = int(rate * 0.01)
+    energie = np.array([np.sqrt(np.mean(voll[i:i + fenster] ** 2)) for i in range(0, len(voll) - fenster, fenster)])
+    von, bis = int(vor * 0.85 / fenster), min(len(energie) - 1, int(vor * 1.15 / fenster))
+    schnitt = (von + int(np.argmin(energie[von:bis + 1]))) * fenster
+    return trimmen(voll[schnitt:])
+
+
+def satz_sprechen(stimme, satz, rate, tempo):
+    kern = satz.strip().rstrip('.!?')
+    if kern.lower() in ALLEIN_SCHLECHT:
+        return aus_traeger(stimme, kern, rate, tempo, '!' if satz.strip().endswith('!') else '.')
+    cfg = SynthesisConfig(length_scale=tempo)
+    return trimmen(np.concatenate([c.audio_float_array for c in stimme.synthesize(satz, syn_config=cfg)]))
+
+
 def synth_zaehlen(stimme, text, rate):
     # Jede Zahl als eigener Satz („Eins. Zwei. Drei. Drei!“ – großgeschrieben, sonst erkennt Piper keinen Satzanfang),
     # dazwischen Stille
-    cfg = SynthesisConfig(length_scale=ZAEHL_TEMPO)
-    saetze = [trimmen(c.audio_float_array) for c in stimme.synthesize(re.sub(r', (\w)', lambda m: '. ' + m.group(1).upper(), text), syn_config=cfg)]
+    saetze = re.split(r'(?<=[.!?])\s+', re.sub(r', (\w)', lambda m: '. ' + m.group(1).upper(), text).strip())
     stille = np.zeros(int(rate * ZAEHL_PAUSE), dtype=np.float32)
     teile = []
     for i, satz in enumerate(saetze):
-        teile += [stille, satz] if i else [satz]
+        teil = satz_sprechen(stimme, satz, rate, ZAEHL_TEMPO)
+        teile += [stille, teil] if i else [teil]
     return np.concatenate(teile) if teile else np.zeros(0, dtype=np.float32)
 
 
@@ -90,7 +116,12 @@ def main():
     if 'ansagen' in teile:
         for name, satz in ANSAGEN.items():
             if args.neu or not (ziel / f'ansage-{name}.wav').exists():
-                audio = synth_zaehlen(stimme, satz, rate) if ZAEHLFOLGE.match(name) else synth(stimme, satz, tempo=1.05)
+                if ZAEHLFOLGE.match(name):
+                    audio = synth_zaehlen(stimme, satz, rate)
+                elif satz.strip().rstrip('.!?').lower() in ALLEIN_SCHLECHT:
+                    audio = satz_sprechen(stimme, satz, rate, 1.05)
+                else:
+                    audio = synth(stimme, satz, tempo=1.05)
                 speichern(ziel / f'ansage-{name}.wav', audio, rate, args.neu)
 
 
