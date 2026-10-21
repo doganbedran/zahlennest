@@ -18,6 +18,15 @@
   zaehlenMitLeuchten = async (name, el, beiJedem) => { gesagt.push(name); el.forEach((e, i) => { e.classList.add('leuchtet'); if (beiJedem) beiJedem(i); }); await warte(5); };
   Object.assign(HUEPFEN_ZEIT, { vormachenPause: 20, daumen: 100, auftragNochmal: 3000 });
   const zuletzt = () => gesagt[gesagt.length - 1];
+  // Mitten im Hüpfer bleibt die Figur an ihrem Platz (die Hüpf-Bewegung darf die Position nicht überschreiben)
+  const bleibtAmPlatz = async (el) => {
+    const vor = el.getBoundingClientRect();
+    animieren(el, 'huepft');
+    await warte(150);
+    const mitten = el.getBoundingClientRect();
+    return Math.abs(mitten.left - vor.left) < 4 && Math.abs(mitten.top - vor.top) < vor.height;
+  };
+
   const mitte = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
   const ev = (el, typ, p) => el.dispatchEvent(new PointerEvent(typ, { bubbles: true, pointerId: 1, isPrimary: true, clientX: p.x, clientY: p.y }));
   const feldPunkt = ([x, y]) => { const r = $('#huepfen-feld').getBoundingClientRect(); return { x: r.left + x, y: r.top + y }; };
@@ -57,6 +66,7 @@
   pruefe(!ueber && weit(s0, s1) >= 0.9 * weit(s1, s2), `Start: Frosch auf Stein 1 oder erster Hüpfer zu kurz (${Math.round(weit(s0, s1))} / ${Math.round(weit(s1, s2))})`);
   const uferR = $('#huepfen-feld .ufer').getBoundingClientRect(), fm = mitte(hp.frosch);
   pruefe(fm.x >= uferR.left && fm.x <= uferR.right && fm.y >= uferR.top && fm.y <= uferR.bottom, 'Frosch steht nicht auf dem Ufer');
+  pruefe(await bleibtAmPlatz(hp.frosch), 'Frosch springt beim Hüpfen an den Anfang und zurück');
   // Ein kleines Wackeln am Ufer zählt nicht
   await schieben(feldPunkt([s0[0] + (s1[0] - s0[0]) * 0.3, s0[1] + (s1[1] - s0[1]) * 0.3]));
   pruefe(hp.stein === 0, 'Wackeln am Ufer zählt als Hüpfer');

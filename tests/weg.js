@@ -17,6 +17,15 @@
   folgeAbspielen = async (folge) => { gesagt.push(...folge.map((q) => q.url.replace('audio/ansage-', '').replace('.wav', ''))); await warte(5); };
   Object.assign(WEG_ZEIT, { wurf: 20, teddySchritt: 20, wechsel: 20, daumen: 100, auftragNochmal: 3000 });
   const zuletzt = () => gesagt[gesagt.length - 1];
+  // Mitten im Hüpfer bleibt die Figur an ihrem Platz (die Hüpf-Bewegung darf die Position nicht überschreiben)
+  const bleibtAmPlatz = async (el) => {
+    const vor = el.getBoundingClientRect();
+    animieren(el, 'huepft');
+    await warte(150);
+    const mitten = el.getBoundingClientRect();
+    return Math.abs(mitten.left - vor.left) < 4 && Math.abs(mitten.top - vor.top) < vor.height;
+  };
+
   const mitte = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
   const ev = (el, typ, p) => el.dispatchEvent(new PointerEvent(typ, { bubbles: true, pointerId: 1, isPrimary: true, clientX: p.x, clientY: p.y }));
   const feldPunkt = ([x, y]) => { const r = $('#weg-feld').getBoundingClientRect(); return { x: r.left + x, y: r.top + y }; };
@@ -54,6 +63,7 @@
   pruefe(startR.right <= felder[0].left + 1 && kaeferM.x >= startR.left && kaeferM.x <= startR.right && kaeferM.x < felder[0].left,
     'Käfer steht nicht am Startplatz vor Feld 1');
   pruefe(startR.left >= feldR.left - 1, 'Startplatz ragt heraus');
+  pruefe(await bleibtAmPlatz(wg.kaefer), 'Käfer springt beim Hüpfen an den Anfang und zurück');
   pruefe(!/[A-Za-zÄÖÜäöüß]/.test($('#weg').innerText), `Text auf dem Kinder-Bildschirm: ${$('#weg').innerText}`);
 
   // 3. Ohne Würfeln lässt sich nicht ziehen; würfeln (1 oder 2), dann Feld für Feld

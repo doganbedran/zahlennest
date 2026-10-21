@@ -575,10 +575,17 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 .frosch { position: absolute; left: 0; top: 0; display: flex; align-items: center; justify-content: center; line-height: 1;
   z-index: 3; touch-action: none; transition: transform 0.3s ease-out; }
 .frosch.greift { transition: none; }
-.frosch.huepft { animation: ding-huepfen 0.4s ease; }
+.figur-bild { display: inline-block; transition: transform 0.25s ease-in, opacity 0.25s; }
+/* Hüpfen nur am inneren Bild – das äußere Element trägt den Platz (sonst überschreibt die Animation die Position) */
+.frosch.huepft .figur-bild, .kaefer.huepft .figur-bild { animation: ding-huepfen 0.4s ease; }
+.frosch.springt .figur-bild { animation: frosch-bogen 0.32s ease-out; }
+@keyframes frosch-bogen { 45% { transform: translateY(-0.6em) scale(1.05); } }
+.frosch.wackelt .figur-bild { animation: wackeln 0.45s ease; }
+.frosch.weg .figur-bild { transform: scale(0); opacity: 0; }
+.frosch.kommt .figur-bild { animation: aufploppen 0.35s ease-out; }
 .kachel-huepfen { display: grid; justify-items: center; font-size: 0.6em; line-height: 1; }
 .kachel-huepfen .k-stein { width: 1.2em; height: 0.36em; border-radius: 50%; background: #a9a39a; margin-top: 4px; }
-@media (prefers-reduced-motion: reduce) { .frosch { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .frosch { transition: none; } .figur-bild { animation: none !important; transition: none; } }
 
 /* ---------- Zahlenweg: gerade Reihe 1–10, Käfer, Würfel (1–2), Teddy ---------- */
 #weg, .weg-feld-buehne { touch-action: none; overscroll-behavior: none; }
@@ -592,7 +599,7 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 .kaefer { position: absolute; left: 0; top: 0; display: flex; align-items: center; justify-content: center; line-height: 1;
   z-index: 3; touch-action: none; transition: transform 0.35s ease-out; }
 .kaefer.greift { transition: none; }
-.kaefer.huepft { animation: ding-huepfen 0.4s ease; }
+
 .weg-unten { position: absolute; left: 0; right: 0; bottom: 96px; display: flex; justify-content: center; align-items: center; gap: 40px; }
 @media (orientation: landscape) { .weg-unten { bottom: 16px; } }
 .weg-wuerfel { width: min(120px, 26vw, 22dvh); aspect-ratio: 1; border-radius: 22px; border: 4px solid #4a3f35; background: #fff;
@@ -630,7 +637,7 @@ body.laedt #home .spiele-raster { visibility: hidden; }
 .stange { position: absolute; left: 0; top: 0; touch-action: none; z-index: 2; transition: transform 0.28s ease-out; }
 .stange svg { width: 100%; height: 100%; display: block; }
 .stange.greift { transition: none; z-index: 5; }
-.stange.huepft { animation: ding-huepfen 0.4s ease; }
+.stange.huepft svg { animation: ding-huepfen 0.4s ease; }
 .stange .menge-punkt.leuchtet { fill: #f5c518; stroke: #b07800; stroke-width: 2.5; }
 .stange.leuchtet svg rect { fill: #f5c518; }
 .treppe-kaefer { position: absolute; left: 0; top: 0; display: flex; align-items: center; justify-content: center; line-height: 1;

@@ -18,6 +18,15 @@
   zaehlenMitLeuchten = async (name, el, beiJedem) => { gesagt.push(name); el.forEach((e, i) => { e.classList.add('leuchtet'); if (beiJedem) beiJedem(i); }); await warte(5); };
   Object.assign(TREPPE_ZEIT, { fertigPause: 20, daumen: 100, auftragNochmal: 3000 });
   const zuletzt = () => gesagt[gesagt.length - 1];
+  // Mitten im Hüpfer bleibt die Figur an ihrem Platz (die Hüpf-Bewegung darf die Position nicht überschreiben)
+  const bleibtAmPlatz = async (el) => {
+    const vor = el.getBoundingClientRect();
+    animieren(el, 'huepft');
+    await warte(150);
+    const mitten = el.getBoundingClientRect();
+    return Math.abs(mitten.left - vor.left) < 4 && Math.abs(mitten.top - vor.top) < vor.height;
+  };
+
   const mitte = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
   const ev = (el, typ, p) => el.dispatchEvent(new PointerEvent(typ, { bubbles: true, pointerId: 1, isPrimary: true, clientX: p.x, clientY: p.y }));
   const stufe = (n) => $('#treppe-feld').querySelectorAll('.stufe')[n - 1];
@@ -44,6 +53,7 @@
   pruefe(tp.stangen.length === 5 && !tp.stangen.every((s, i) => s.n === i + 1) && zuletzt() === 'treppe-start', `Start: ${tp.stangen.map((s) => s.n)}`);
   pruefe(!/[A-Za-zÄÖÜäöüß0-9]/.test($('#treppe').innerText), `Text/Ziffern auf dem Kinder-Bildschirm: ${$('#treppe').innerText}`);
   pruefe(tp.stangen.every((s) => s.el.querySelectorAll('.menge-punkt').length === s.n), 'Punkte auf den Stangen falsch');
+  pruefe(await bleibtAmPlatz(tp.stangen[0].el), 'Stange springt beim Hüpfen an den Anfang und zurück');
 
   // 2. Falsche Stufe: rastet nicht ein, liegt über der Treppe
   await schieben(stange(3), mitte(stufe(1)));

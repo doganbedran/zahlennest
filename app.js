@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 26;
+const APP_VERSION = 27;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -716,7 +716,7 @@ function wvEinzeln(n, bild) {
 }
 
 function animieren(el, klasse) {
-  el.classList.remove('huepft', 'wackelt', 'kommt', klasse);
+  el.classList.remove('huepft', 'wackelt', 'kommt', 'springt', klasse);
   void el.offsetWidth;
   el.classList.add(klasse);
 }
@@ -3738,7 +3738,7 @@ function hpFeldAufbauen() {
   });
   hp.frosch = document.createElement('div');
   hp.frosch.className = 'frosch';
-  hp.frosch.textContent = '🐸';
+  hp.frosch.innerHTML = '<span class="figur-bild">🐸</span>';   // Bewegung außen (Platz), Hüpfen innen
   hp.frosch.style.transition = 'none';
   feld.appendChild(hp.frosch);
   hp.stein = 0;
@@ -3755,15 +3755,27 @@ async function huepfenVormachen() {
   hp.gesperrt = true;
   await warten(500);
   if (!hpAktuell(nr)) return;
-  const ok = await hpZaehlen(nr, `huepfen-vers-${hp.n}`, hp.steine, (i) => { hp.stein = i + 1; hpFroschAufStein(); animieren(hp.frosch, 'huepft'); });
+  // Jeder Hüpfer ein Bogen: ein Wort, ein Sprung
+  const ok = await hpZaehlen(nr, `huepfen-vers-${hp.n}`, hp.steine, (i) => { hp.stein = i + 1; hpFroschAufStein(); animieren(hp.frosch, 'springt'); });
   if (!ok) return;
   await warten(HUEPFEN_ZEIT.vormachenPause);
   if (!hpAktuell(nr)) return;
-  // 2. Jetzt das Kind: zurück ans Ufer, Steine wieder still
+  // 2. Jetzt das Kind: der Frosch freut sich kurz, verschwindet auf dem letzten Stein und taucht am Ufer wieder auf
+  // (kein Gleiten quer über den Teich, kein Zurückhüpfen – das wäre Rückwärtszählen ohne Worte)
+  animieren(hp.frosch, 'huepft');
+  await warten(450);
+  hp.frosch.classList.add('weg');
   hp.steine.forEach((s) => s.classList.remove('leuchtet'));
+  await warten(550);
+  if (!hpAktuell(nr)) return;
   hp.stein = 0;
   hp.fehlgriffe = 0;
+  hp.frosch.style.transition = 'none';
   hpFroschAufStein();
+  void hp.frosch.offsetWidth;
+  hp.frosch.style.transition = '';
+  hp.frosch.classList.remove('weg');
+  animieren(hp.frosch, 'kommt');
   if (!(await hpAnsage(nr, 'huepfen-du'))) return;
   hp.gesperrt = false;
   // Gleich zeigen, wohin es geht: der erste Stein pulsiert, der Frosch hüpft einmal („mich kannst du nehmen“)
@@ -3816,8 +3828,8 @@ function hpLoslassen(e) {
   const amZiel = Math.hypot(x - nx, y - ny);
   if (z.bewegt && amZiel <= hp.mass.S * 1.1 && amZiel < Math.hypot(x - hx, y - hy)) { hp.fehlgriffe = 0; hpAngekommen(); return; }
   hpFroschAufStein();
-  animieren(hp.frosch, 'huepft');
-  if (!z.bewegt) return;
+  if (!z.bewegt) { animieren(hp.frosch, 'huepft'); return; }
+  setTimeout(() => animieren(hp.frosch, 'wackelt'), 330);   // „ich bin wieder da“, nachdem er zurückgeglitten ist
   // Daneben: sofort zeigen, welcher Stein dran ist; beim zweiten Mal auch sagen (kein „falsch“)
   animieren(hp.steine[hp.stein], 'pulsiert');
   if (++hp.fehlgriffe === 2 && !hp.gesperrt && !hp.sprech.offen) {
@@ -3833,6 +3845,7 @@ async function hpAngekommen() {
   hp.stein++;
   const k = hp.stein;
   hpFroschAufStein();
+  animieren(hp.frosch, 'huepft');
   hp.steine[k - 1].classList.add('leuchtet');
   const fertig = k >= hp.n;
   if (fertig) { hp.gesperrt = true; clearTimeout(hp.timer); } else hpHilfeAbwarten(nr);
@@ -3969,7 +3982,7 @@ function wgFeldAufbauen() {
     + '<div class="weg-unten"><button class="weg-wuerfel" aria-label="Würfeln"></button><div class="weg-teddy" aria-hidden="true">🧸</div></div>';
   wg.kaefer = document.createElement('div');
   wg.kaefer.className = 'kaefer';
-  wg.kaefer.textContent = '🐞';
+  wg.kaefer.innerHTML = '<span class="figur-bild">🐞</span>';
   wg.kaefer.style.transition = 'none';
   feld.appendChild(wg.kaefer);
   wgAnordnen();
@@ -4600,7 +4613,7 @@ async function tpEinrasten(s) {
   // Fertig: der Käfer läuft die Treppe hinauf – eine Stufe je Zahl
   const kaefer = document.createElement('div');
   kaefer.className = 'treppe-kaefer';
-  kaefer.textContent = '🐞';
+  kaefer.innerHTML = '<span class="figur-bild">🐞</span>';
   $('#treppe-feld').appendChild(kaefer);
   const { E, B } = tp.mass;
   const stangen = [...tp.stangen].sort((a, b) => a.n - b.n);
