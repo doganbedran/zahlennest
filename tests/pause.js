@@ -28,8 +28,8 @@
   // 2. Einstellung im Elternbereich → gemeinsamer Schlüssel; Text für Eltern mit Minuten, gilt für beide Apps
   [...$('#pause-wahl').children][1].click();
   pruefe(localStorage.getItem('nest:pauseNach') === '10' && !localStorage.getItem('zn:pauseNach'), 'Pause nicht unter nest:pauseNach');
-  pruefe($('#eltern').textContent.includes('Gilt für Wortnest und Zahlennest'), 'Hinweis „beide Apps“ fehlt');
-  pruefe($('#spielzeit-heute').textContent.startsWith('Heute gespielt') && $('#spielzeit-heute').textContent.includes('Wortnest und Zahlennest zusammen'), 'Spielzeit heute fehlt');
+  pruefe($('#eltern').textContent.includes('Gilt für Wortnest, Zahlennest und Formennest'), 'Hinweis „beide Apps“ fehlt');
+  pruefe($('#spielzeit-heute').textContent.startsWith('Heute gespielt') && $('#spielzeit-heute').textContent.includes('Wortnest, Zahlennest und Formennest zusammen'), 'Spielzeit heute fehlt');
   pruefe($('#btn-pause-aus').hidden, '„Pause beenden“ ohne Pause');
   zurStartseite(); await warte(300);
 

@@ -1,7 +1,7 @@
 'use strict';
 
 // Bei jeder Änderung zusammen mit CACHE in sw.js erhöhen (wird im Elternbereich angezeigt)
-const APP_VERSION = 31;
+const APP_VERSION = 32;
 
 // Nie in fremden Seiten laufen (Schutz vor „Klick-Fallen“, bei denen eine fremde Seite die App unsichtbar einbettet):
 // eingebettet → nur ein Hinweis mit Link, die App startet nicht
@@ -565,7 +565,7 @@ function pauseWahlZeichnen() {
   // Nur für Eltern, gerundet; beide Apps zählen in denselben Schlüssel
   const min = Math.round(spielzeitLesen().heute / 60000);
   $('#spielzeit-heute').textContent = `Heute gespielt: ${min < 1 ? 'noch keine Minute' : `ca. ${min} Min.`} `
-    + '(Wortnest und Zahlennest zusammen).';
+    + '(Wortnest, Zahlennest und Formennest zusammen).';
   $('#btn-pause-aus').hidden = !pauseLaeuft();
 }
 
